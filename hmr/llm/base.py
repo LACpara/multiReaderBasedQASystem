@@ -10,7 +10,7 @@ class LLMClient(Protocol):
     """Low-level provider boundary for actual remote LLM calls."""
 
     @abstractmethod
-    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 1024) -> str:
+    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 1024, json_require: bool = False) -> str:
         """Return a raw completion string from the configured model provider."""
 
 

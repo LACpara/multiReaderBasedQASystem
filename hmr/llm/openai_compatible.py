@@ -23,9 +23,9 @@ class OpenAICompatibleLLMClient:
     timeout: int | None = None
 
     @retry(retries=5, delay=1)
-    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 80000) -> str:
+    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 80000, json_require: bool = False) -> str:
         logger.debug("Calling remote LLM model=%s max_tokens=%s", self.model, max_tokens)
-        payload = self._payload(prompt, temperature, max_tokens)
+        payload = self._payload(prompt, temperature, max_tokens, json_require)
         request = self._request(payload)
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
@@ -33,18 +33,18 @@ class OpenAICompatibleLLMClient:
         logger.debug(f"llm response with content: \"{content}\"")
         return content
 
-    def _payload(self, prompt: str, temperature: float, max_tokens: int) -> bytes:
-        return json.dumps(
-            {
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "response_format": {
-                    'type': 'json_object'
-                }
+    def _payload(self, prompt: str, temperature: float, max_tokens: int, json_require: bool) -> bytes:
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if json_require:
+            payload["response_format"] = {
+                'type': 'json_object'
             }
-        ).encode("utf-8")
+        return json.dumps(payload).encode("utf-8")
 
     def _request(self, payload: bytes) -> urllib.request.Request:
         url = self.base_url.rstrip("/") + "/chat/completions"

@@ -10,9 +10,9 @@ from pathlib import Path
 from hmr.app import ReaderRetrievalApp
 from hmr.config import AppConfig, IngestionConfig, RetrievalConfig, StorageConfig
 from hmr.logging_config import setup_logging
-
 from hmr.llm.prompted_service import PromptedReaderLLMService
 from hmr.llm.openai_compatible import OpenAICompatibleLLMClient
+
 
 DEFAULT_QUERIES = [
     "这个系统为什么不是寻找相似文本，而是寻找专家 Reader？",
@@ -22,11 +22,11 @@ DEFAULT_QUERIES = [
 
 from dotenv import load_dotenv
 
-load_dotenv()
 
 
 def main() -> None:
     args = parse_args()
+    load_dotenv()
     runtime_dir = args.runtime_dir
     if args.reset and runtime_dir.exists():
         shutil.rmtree(runtime_dir)
