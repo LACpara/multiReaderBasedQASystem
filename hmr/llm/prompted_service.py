@@ -63,8 +63,10 @@ class PromptedReaderLLMService:
 
     def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> str:
         prompt = self._merge_prompt(question, answers)
-        return self.client.complete(prompt, temperature=0.0, max_tokens=900).strip()
-
+        result = self.client.complete(prompt, temperature=0.0, max_tokens=900).strip()
+        result = json.loads(result).get("result", "")
+        return result
+    
     def _json_call(self, prompt: str) -> dict[str, Any]:
         raw = self.client.complete(prompt, temperature=0.0, max_tokens=1100)
         try:
@@ -83,7 +85,13 @@ class PromptedReaderLLMService:
     def _knowledge_prompt(self, text: str, title: str) -> str:
         return f"""
 你是分层 Reader 系统中的知识提炼器。请只基于输入文本提炼结构化知识。
-返回严格 JSON，字段为 summary, entities, relations, exceptions。
+返回严格 JSON：
+{{
+    "summary": "...",
+    "entities": ["..."],
+    "relations": ["..."],
+    "exceptions": ["..."]
+}}
 
 标题：{title}
 文本：
@@ -121,7 +129,8 @@ class PromptedReaderLLMService:
         serialized = [asdict(answer) for answer in answers]
         return f"""
 请整合多个 Reader 的部分回答，去除重复、保留高置信度信息。
-只能使用给定回答中的信息，无法确定则说明不足。
+只能使用给定回答中的信息，无法确定则说明不足。返回严格 JSON：
+{{"result": "..."}}
 
 问题：{question}
 Reader 回答：{json.dumps(serialized, ensure_ascii=False)}

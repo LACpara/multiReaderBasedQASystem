@@ -4,6 +4,7 @@ import json
 import logging
 import urllib.request
 from dataclasses import dataclass
+from hmr.utils import retry
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +20,18 @@ class OpenAICompatibleLLMClient:
     api_key: str
     model: str
     base_url: str = "https://api.openai.com/v1"
-    timeout: int = 60
+    timeout: int | None = None
 
-    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 1024) -> str:
+    @retry(retries=5, delay=1)
+    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 80000) -> str:
         logger.debug("Calling remote LLM model=%s max_tokens=%s", self.model, max_tokens)
         payload = self._payload(prompt, temperature, max_tokens)
         request = self._request(payload)
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
+        logger.debug(f"llm response with content: \"{content}\"")
+        return content
 
     def _payload(self, prompt: str, temperature: float, max_tokens: int) -> bytes:
         return json.dumps(
@@ -36,6 +40,9 @@ class OpenAICompatibleLLMClient:
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "response_format": {
+                    'type': 'json_object'
+                }
             }
         ).encode("utf-8")
 

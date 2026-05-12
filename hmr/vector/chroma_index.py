@@ -52,7 +52,7 @@ class ChromaVectorIndex:
             n_results=top_k,
             include=["metadatas", "documents", "distances"],
         )
-        return self._to_candidates(result)
+        return self._to_candidates(dict(result))
 
     def delete_document(self, document_id: str) -> None:
         logger.info("Deleting Chroma vectors for document_id=%s", document_id)
@@ -68,7 +68,7 @@ class ChromaVectorIndex:
         knowledge = reader.knowledge
         questions = "\n".join(knowledge.capability_questions)
         return "\n".join(
-            part
+            (part if isinstance(part, str) or logger.warning(f"{part} will be cast to str by str()") else str(part))
             for part in [reader.title, questions, knowledge.summary, *knowledge.entities, *knowledge.relations]
             if part
         )

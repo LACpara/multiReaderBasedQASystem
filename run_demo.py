@@ -3,17 +3,26 @@ from __future__ import annotations
 import argparse
 import logging
 import shutil
+import os
+
 from pathlib import Path
 
 from hmr.app import ReaderRetrievalApp
 from hmr.config import AppConfig, IngestionConfig, RetrievalConfig, StorageConfig
 from hmr.logging_config import setup_logging
 
+from hmr.llm.prompted_service import PromptedReaderLLMService
+from hmr.llm.openai_compatible import OpenAICompatibleLLMClient
+
 DEFAULT_QUERIES = [
     "这个系统为什么不是寻找相似文本，而是寻找专家 Reader？",
     "查询阶段的粗召回和自评估激活分别做什么？",
     "SQLite 和 Chroma 在这个 demo 里分别负责什么？",
 ]
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def main() -> None:
@@ -30,7 +39,13 @@ def main() -> None:
     logging.getLogger(__name__).info("Runtime directory: %s", runtime_dir)
 
     config = build_config(args)
-    app = ReaderRetrievalApp(config)
+    client = OpenAICompatibleLLMClient(
+        api_key=os.environ.get("API_KEY", ""),
+        model="deepseek-v4-flash",
+        base_url="https://api.deepseek.com"
+    )
+    llm_service = PromptedReaderLLMService(client)
+    app = ReaderRetrievalApp(config, llm_service=llm_service)
     try:
         root_id = app.ingest_file(args.doc, document_id=args.document_id)
         print(f"\n✅ Ingested document: {args.doc}")
