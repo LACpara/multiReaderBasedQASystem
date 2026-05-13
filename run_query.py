@@ -16,7 +16,7 @@ from hmr.llm.openai_compatible import OpenAICompatibleLLMClient
 def parser_argment() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("--query", action="append", help="Ask one query. Can be repeated.")
-    parser.add_argument("--top-k", type=int, default=6)
+    parser.add_argument("--top-k", type=int, default=4)
     parser.add_argument("--runtime-dir", type=Path, default=Path("runtime"))
     parser.add_argument("--activation-threshold", type=float, default=0.08)
     parser.add_argument("--verbose", action="store_true", help="Enable DEBUG logs.")
