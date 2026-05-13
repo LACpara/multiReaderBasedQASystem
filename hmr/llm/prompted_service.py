@@ -101,7 +101,8 @@ class PromptedReaderLLMService:
 
     def _questions_prompt(self, knowledge: ReaderKnowledge, title: str) -> str:
         return f"""
-请根据 Reader 知识生成它能够回答的问题边界。返回严格 JSON：
+请根据 Reader 知识生成它能够回答的问题边界。
+返回严格 JSON：
 {{"capability_questions": ["..."]}}
 
 标题：{title}
@@ -111,7 +112,14 @@ class PromptedReaderLLMService:
     def _activation_prompt(self, knowledge: ReaderKnowledge, question: str) -> str:
         return f"""
 判断该 Reader 是否应回答用户问题。只基于 Reader 知识，不要外推。
-返回严格 JSON：should_answer(boolean), score(0-1), sub_question, reason。
+如果判断可以回答（或者部分地进行回答），通过 sub_question 字段定义自己要回答的问题（这应该是一个问句）。
+返回严格 JSON：
+{{
+    "should_answer": "boolean",
+    "score": "float:0~1",
+    "sub_question": "...",
+    "reason": "..."
+}}
 
 问题：{question}
 知识：{json.dumps(knowledge.to_dict(), ensure_ascii=False)}
@@ -119,7 +127,8 @@ class PromptedReaderLLMService:
 
     def _answer_prompt(self, knowledge: ReaderKnowledge, question: str) -> str:
         return f"""
-请只基于 Reader 知识回答问题，可部分回答。返回严格 JSON：
+请只基于 Reader 知识回答问题，可部分回答。
+返回严格 JSON：
 {{"answer": "...", "confidence": 0.0}}
 
 问题：{question}

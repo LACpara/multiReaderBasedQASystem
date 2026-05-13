@@ -30,7 +30,7 @@ class OpenAICompatibleLLMClient:
         with urllib.request.urlopen(request, timeout=self.timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
         content = data["choices"][0]["message"]["content"]
-        logger.debug(f"llm response with content: \"{content}\"")
+        logger.debug(f"llm response with content: \n{content}")
         return content
 
     def _payload(self, prompt: str, temperature: float, max_tokens: int, json_require: bool) -> bytes:
