@@ -3,14 +3,16 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
+from typing_extensions import override
 
+from hmr.vector.base import VectorIndex
 from hmr.domain import ReaderNode, VectorCandidate
 from hmr.vector.embedding import HashEmbeddingModel
 
 logger = logging.getLogger(__name__)
 
 
-class ChromaVectorIndex:
+class ChromaVectorIndex(VectorIndex):
     """ChromaDB implementation of the vector recall boundary."""
 
     def __init__(
@@ -33,6 +35,7 @@ class ChromaVectorIndex:
         self.collection = self.client.get_or_create_collection(name=collection_name)
         logger.info("Chroma index opened at %s collection=%s", self.persist_path, collection_name)
 
+    @override
     def upsert_reader(self, reader: ReaderNode) -> None:
         document = self._capability_document(reader)
         metadata = self._metadata(reader)
@@ -45,6 +48,7 @@ class ChromaVectorIndex:
             metadatas=[metadata],
         )
 
+    @override
     def query(self, question: str, *, top_k: int) -> list[VectorCandidate]:
         logger.info("Running Chroma coarse recall top_k=%s", top_k)
         result = self.collection.query(
@@ -54,6 +58,7 @@ class ChromaVectorIndex:
         )
         return self._to_candidates(dict(result))
 
+    @override
     def delete_document(self, document_id: str) -> None:
         logger.info("Deleting Chroma vectors for document_id=%s", document_id)
         try:
@@ -61,6 +66,7 @@ class ChromaVectorIndex:
         except Exception as exc:  # Chroma raises if where matches nothing in some versions.
             logger.debug("Chroma delete skipped: %s", exc)
 
+    @override
     def close(self) -> None:
         logger.debug("Chroma PersistentClient does not require explicit close")
 
