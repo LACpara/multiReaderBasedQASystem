@@ -14,7 +14,7 @@ class VectorIndex(ABC):
         """Index one Reader's capability representation."""
 
     @abstractmethod
-    def query(self, question: str, *, top_k: int) -> list[VectorCandidate]:
+    def query(self, question: str, *, top_k: int, where: dict) -> list[VectorCandidate]:
         """Return coarse recall candidates for a user question."""
 
     @abstractmethod

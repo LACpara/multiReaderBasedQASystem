@@ -42,7 +42,8 @@ class RetrievalEngine:
     
     def _ask(self, question: str, *, root_reader: Optional[ReaderNode] = None) -> ReaderAnswer | RetrievalResult:
         logger.info("Received query: %s", question)
-        candidates = self.vector_index.query(question, top_k=self.config.top_k)
+        condition = {"depth": {"$eq": 0}} if root_reader is None else {"parent_id": {"$eq": root_reader.reader_id}}
+        candidates = self.vector_index.query(question, top_k=self.config.top_k, where=condition)
         answers = self._activate_and_answer(question, candidates)
         logger.info("Query completed with %s activated readers", len(answers))
         merged_answer = self.llm_service.merge_answers(question, answers)

@@ -49,12 +49,13 @@ class ChromaVectorIndex(VectorIndex):
         )
 
     @override
-    def query(self, question: str, *, top_k: int) -> list[VectorCandidate]:
+    def query(self, question: str, *, top_k: int, where: dict) -> list[VectorCandidate]:
         logger.info("Running Chroma coarse recall top_k=%s", top_k)
         result = self.collection.query(
             query_embeddings=[self.embedding_model.embed(question)],
             n_results=top_k,
             include=["metadatas", "documents", "distances"],
+            where=where
         )
         return self._to_candidates(dict(result))
 
