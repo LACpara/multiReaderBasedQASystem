@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import uuid
 
+from typing import Optional
+
 from hmr.complexity import ComplexityEstimator
 from hmr.config import IngestionConfig
 from hmr.domain import ReaderNode
@@ -23,13 +25,15 @@ class ReaderTreeBuilder:
         llm_service: ReaderLLMService,
         store: KnowledgeStore,
         vector_index: VectorIndex,
+        complexity_estimator: Optional[ComplexityEstimator] = None,
+        document_spliter: Optional[SemanticTextSplitter] = None
     ) -> None:
         self.config = config
         self.llm_service = llm_service
         self.store = store
         self.vector_index = vector_index
-        self.complexity = ComplexityEstimator()
-        self.splitter = SemanticTextSplitter(config.max_leaf_chars)
+        self.complexity = complexity_estimator or ComplexityEstimator()
+        self.splitter = document_spliter or SemanticTextSplitter(config.max_leaf_chars)
 
     def ingest_document(self, *, document_id: str, title: str, text: str) -> ReaderNode:
         logger.info("Starting ingestion document_id=%s title=%s", document_id, title)

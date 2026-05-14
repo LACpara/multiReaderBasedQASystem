@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import logging
 
+from typing import Generator, Optional, List, Tuple
+from typing_extensions import overload
+
 from hmr.config import RetrievalConfig
-from hmr.domain import ReaderAnswer, RetrievalResult, VectorCandidate
+from hmr.domain import ReaderAnswer, RetrievalResult, VectorCandidate, ReaderNode
 from hmr.llm.base import ReaderLLMService
 from hmr.storage.base import KnowledgeStore
 from hmr.vector.base import VectorIndex
@@ -27,14 +30,37 @@ class RetrievalEngine:
         self.vector_index = vector_index
 
     def ask(self, question: str) -> RetrievalResult:
+        result = self._ask(question)
+        self.store.save_query_result(result)
+        return result
+    
+    @overload
+    def _ask(self, question: str, *, root_reader: ReaderNode) -> ReaderAnswer: ...
+
+    @overload
+    def _ask(self, question: str, *, root_reader: None = None) -> RetrievalResult: ...
+    
+    def _ask(self, question: str, *, root_reader: Optional[ReaderNode] = None) -> ReaderAnswer | RetrievalResult:
         logger.info("Received query: %s", question)
         candidates = self.vector_index.query(question, top_k=self.config.top_k)
         answers = self._activate_and_answer(question, candidates)
-        answer = self.llm_service.merge_answers(question, answers)
-        result = RetrievalResult(question=question, answer=answer, candidates=candidates, activated_answers=answers)
-        self.store.save_query_result(result)
         logger.info("Query completed with %s activated readers", len(answers))
-        return result
+        merged_answer = self.llm_service.merge_answers(question, answers)
+        if root_reader is not None:
+            return ReaderAnswer(
+                reader_id=root_reader.reader_id,
+                answer=merged_answer,
+                confidence=sum(a.confidence for a in answers) / len(answers),
+                source_excerpt="\n\n".join(a.source_excerpt for a in answers),
+                title=root_reader.title
+            )
+        else:
+            return RetrievalResult(
+                question=question,
+                answer=merged_answer,
+                candidates=candidates,
+                activated_answers=answers
+            )
 
     def _activate_and_answer(
         self,
@@ -57,14 +83,16 @@ class RetrievalEngine:
             )
             if not self._passes_activation(decision.score, decision.should_answer):
                 continue
-            answers.append(
-                self.llm_service.answer_question(
+            if reader.is_leaf:
+                answer = self.llm_service.answer_question(
                     reader.knowledge,
                     decision.sub_question,
                     reader_id=reader.reader_id,
                     title=reader.title,
                 )
-            )
+            else:
+                answer = self._ask(decision.sub_question, root_reader=reader)
+            answers.append(answer)
             if len(answers) >= self.config.max_answers:
                 break
         return answers
