@@ -36,7 +36,8 @@ def main() -> None:
         log_path=runtime_dir / "hmr_demo.log",
         level=logging.DEBUG if args.verbose else logging.INFO,
     )
-    logging.getLogger(__name__).info("Runtime directory: %s", runtime_dir)
+    logger = logging.getLogger(__name__)
+    logger.info("Runtime directory: %s", runtime_dir)
 
     config = build_config(args)
     client = OpenAICompatibleLLMClient(
@@ -48,30 +49,21 @@ def main() -> None:
     app = ReaderRetrievalApp(config, llm_service=llm_service)
     try:
         root_id = app.ingest_file(args.doc, document_id=args.document_id)
-        print(f"\n✅ Ingested document: {args.doc}")
-        print(f"🌳 Root Reader: {root_id}\n")
-        for query in args.query or DEFAULT_QUERIES:
-            result = app.ask(query)
-            print("=" * 88)
-            print(result.answer)
-            print("\nActivated Readers:")
-            for answer in result.activated_answers:
-                print(f"- {answer.title} | confidence={answer.confidence:.2f}")
-            print()
-        print(f"📄 Log file: {runtime_dir / 'hmr_demo.log'}")
-        print(f"🗄️ SQLite DB: {config.storage.sqlite_path}")
-        print(f"🧭 Chroma path: {config.storage.chroma_path}")
+        logger.info(f"\n✅ Ingested document: {args.doc}")
+        logger.info(f"🌳 Root Reader: {root_id}\n")
+        logger.info(f"📄 Log file: {runtime_dir / 'hmr_demo.log'}")
+        logger.info(f"🗄️ SQLite DB: {config.storage.sqlite_path}")
+        logger.info(f"🧭 Chroma path: {config.storage.chroma_path}")
     finally:
         app.close()
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Quick start for HMR demo")
+    parser.add_argument("--top-k", type=int, default=4)
     parser.add_argument("--doc", type=Path, default=Path("sample_docs/idea_demo.md"))
     parser.add_argument("--document-id", default="idea-demo")
     parser.add_argument("--runtime-dir", type=Path, default=Path("runtime"))
-    parser.add_argument("--query", action="append", help="Ask one query. Can be repeated.")
-    parser.add_argument("--top-k", type=int, default=6)
     parser.add_argument("--activation-threshold", type=float, default=0.08)
     parser.add_argument("--max-leaf-chars", type=int, default=900)
     parser.add_argument("--reset", action="store_true", help="Clear runtime storage before running.")
