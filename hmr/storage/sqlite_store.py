@@ -6,13 +6,15 @@ from dataclasses import asdict
 import sqlite3
 from pathlib import Path
 from typing import Any
+from typing_extensions import override
 
 from hmr.domain import ReaderKnowledge, ReaderNode, RetrievalResult, utc_now_iso
+from hmr.storage.base import KnowledgeStore
 
 logger = logging.getLogger(__name__)
 
 
-class SQLiteKnowledgeStore:
+class SQLiteKnowledgeStore(KnowledgeStore):
     """SQLite-backed implementation of the structured storage port."""
 
     def __init__(self, db_path: Path) -> None:
@@ -22,6 +24,7 @@ class SQLiteKnowledgeStore:
         self.connection.row_factory = sqlite3.Row
         logger.info("SQLite store opened at %s", self.db_path)
 
+    @override
     def init_schema(self) -> None:
         logger.debug("Initializing SQLite schema")
         self.connection.executescript(
@@ -56,6 +59,7 @@ class SQLiteKnowledgeStore:
         )
         self.connection.commit()
 
+    @override
     def upsert_reader(self, reader: ReaderNode) -> None:
         logger.debug("Upserting reader id=%s title=%s", reader.reader_id, reader.title)
         self.connection.execute(
@@ -90,6 +94,7 @@ class SQLiteKnowledgeStore:
         )
         self.connection.commit()
 
+    @override
     def get_reader(self, reader_id: str) -> ReaderNode | None:
         row = self.connection.execute(
             "SELECT * FROM readers WHERE reader_id = ?",
@@ -97,6 +102,7 @@ class SQLiteKnowledgeStore:
         ).fetchone()
         return self._row_to_reader(row) if row else None
 
+    @override
     def list_children(self, parent_id: str) -> list[ReaderNode]:
         rows = self.connection.execute(
             "SELECT * FROM readers WHERE parent_id = ? ORDER BY ordinal",
@@ -104,6 +110,7 @@ class SQLiteKnowledgeStore:
         ).fetchall()
         return [self._row_to_reader(row) for row in rows]
 
+    @override
     def list_document_readers(self, document_id: str) -> list[ReaderNode]:
         rows = self.connection.execute(
             "SELECT * FROM readers WHERE document_id = ? ORDER BY depth, ordinal",
@@ -111,11 +118,13 @@ class SQLiteKnowledgeStore:
         ).fetchall()
         return [self._row_to_reader(row) for row in rows]
 
+    @override
     def delete_document(self, document_id: str) -> None:
         logger.info("Deleting existing readers for document_id=%s", document_id)
         self.connection.execute("DELETE FROM readers WHERE document_id = ?", (document_id,))
         self.connection.commit()
 
+    @override
     def save_query_result(self, result: RetrievalResult) -> None:
         trace = {
             "candidates": [asdict(candidate) for candidate in result.candidates],
@@ -136,6 +145,7 @@ class SQLiteKnowledgeStore:
         self.connection.commit()
         logger.debug("Saved query log for question=%s", result.question)
 
+    @override
     def close(self) -> None:
         logger.info("Closing SQLite store")
         self.connection.close()

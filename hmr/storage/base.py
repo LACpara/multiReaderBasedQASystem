@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Protocol
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 
 from hmr.domain import ReaderNode, RetrievalResult
 
 
-class KnowledgeStore(Protocol):
+class KnowledgeStore(ABC):
     """Structured persistence boundary for Reader metadata and query traces."""
 
     @abstractmethod

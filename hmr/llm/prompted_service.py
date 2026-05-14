@@ -4,15 +4,16 @@ import json
 import logging
 from dataclasses import asdict
 from typing import Any
-from hmr.utils import retry
+from typing_extensions import override
 
+from hmr.utils import retry
 from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge
-from hmr.llm.base import LLMClient
+from hmr.llm.base import LLMClient, ReaderLLMService
 
 logger = logging.getLogger(__name__)
 
 
-class PromptedReaderLLMService:
+class PromptedReaderLLMService(ReaderLLMService):
     """LLM-backed implementation of high-level Reader operations.
 
     It depends only on the low-level LLMClient protocol, not on a specific vendor.
@@ -23,17 +24,20 @@ class PromptedReaderLLMService:
     def __init__(self, client: LLMClient) -> None:
         self.client = client
 
+    @override
     def extract_knowledge(self, text: str, *, title: str) -> ReaderKnowledge:
         prompt = self._knowledge_prompt(text, title)
         payload = self._json_call(prompt)
         return ReaderKnowledge.from_dict({**payload, "source_excerpt": text[:500]})
 
+    @override
     def build_capability_questions(self, knowledge: ReaderKnowledge, *, title: str) -> list[str]:
         prompt = self._questions_prompt(knowledge, title)
         payload = self._json_call(prompt)
         questions = payload.get("capability_questions", [])
         return [str(question) for question in questions][:10]
 
+    @override
     def evaluate_activation(self, knowledge: ReaderKnowledge, question: str) -> ActivationDecision:
         prompt = self._activation_prompt(knowledge, question)
         payload = self._json_call(prompt)
@@ -44,6 +48,7 @@ class PromptedReaderLLMService:
             reason=str(payload.get("reason", "")),
         )
 
+    @override
     def answer_question(
         self,
         knowledge: ReaderKnowledge,
@@ -62,6 +67,7 @@ class PromptedReaderLLMService:
             source_excerpt=knowledge.source_excerpt,
         )
 
+    @override
     def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> str:
         prompt = self._merge_prompt(question, answers)
         result = self.client.complete(prompt, temperature=0.0, max_tokens=900).strip()

@@ -111,6 +111,8 @@ class ReaderTreeBuilder:
     ) -> ReaderNode:
         knowledge = self.llm_service.extract_knowledge(text, title=title)
         knowledge.capability_questions = self.llm_service.build_capability_questions(knowledge, title=title)
+        # TODO: infomation integrity self evolution
+        # TODO: reader communication pipline
         return ReaderNode(
             reader_id=reader_id,
             document_id=document_id,

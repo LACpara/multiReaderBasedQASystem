@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Protocol
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 
 from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge
 
 
-class LLMClient(Protocol):
+class LLMClient(ABC):
     """Low-level provider boundary for actual remote LLM calls."""
 
     @abstractmethod
@@ -14,7 +13,7 @@ class LLMClient(Protocol):
         """Return a raw completion string from the configured model provider."""
 
 
-class ReaderLLMService(Protocol):
+class ReaderLLMService(ABC):
     """High-level semantic operations required by the core Reader system."""
 
     @abstractmethod

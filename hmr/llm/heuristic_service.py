@@ -3,19 +3,22 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
+from typing_extensions import override
 
 from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge
+from hmr.llm.base import ReaderLLMService
 
 logger = logging.getLogger(__name__)
 
 
-class HeuristicReaderLLMService:
+class HeuristicReaderLLMService(ReaderLLMService):
     """Deterministic stand-in for an LLM-backed Reader service.
 
     This keeps the demo runnable without API keys. Production code can replace this
     object with PromptedReaderLLMService or any class matching ReaderLLMService.
     """
 
+    @override
     def extract_knowledge(self, text: str, *, title: str) -> ReaderKnowledge:
         logger.debug("Extracting heuristic knowledge for title=%s", title)
         sentences = self._sentences(text)
@@ -27,6 +30,7 @@ class HeuristicReaderLLMService:
             source_excerpt=self._excerpt(text),
         )
 
+    @override
     def build_capability_questions(self, knowledge: ReaderKnowledge, *, title: str) -> list[str]:
         logger.debug("Building capability questions for title=%s", title)
         seeds = self._question_seeds(knowledge, title)
@@ -36,6 +40,7 @@ class HeuristicReaderLLMService:
         questions.append(f"{title} 中有哪些限制、风险或例外？")
         return self._deduplicate(questions)[:8]
 
+    @override
     def evaluate_activation(self, knowledge: ReaderKnowledge, question: str) -> ActivationDecision:
         score = self._overlap_score(question, knowledge.searchable_text())
         should_answer = score > 0.0
@@ -48,6 +53,7 @@ class HeuristicReaderLLMService:
             reason=reason,
         )
 
+    @override
     def answer_question(
         self,
         knowledge: ReaderKnowledge,
@@ -68,6 +74,7 @@ class HeuristicReaderLLMService:
             source_excerpt=knowledge.source_excerpt,
         )
 
+    @override
     def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> str:
         if not answers:
             return "没有 Reader 通过自评估激活，因此无法基于当前知识库回答该问题。"

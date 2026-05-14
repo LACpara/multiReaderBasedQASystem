@@ -4,13 +4,16 @@ import json
 import logging
 import urllib.request
 from dataclasses import dataclass
+from typing_extensions import override
+
 from hmr.utils import retry
+from hmr.llm.base import LLMClient
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
-class OpenAICompatibleLLMClient:
+class OpenAICompatibleLLMClient(LLMClient):
     """Low-level OpenAI-compatible chat completions client.
 
     This class is intentionally small. It lives outside core retrieval logic so
@@ -23,6 +26,7 @@ class OpenAICompatibleLLMClient:
     timeout: int | None = None
 
     @retry(retries=5, delay=1)
+    @override
     def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 80000, json_require: bool = False) -> str:
         logger.debug("Calling remote LLM model=%s max_tokens=%s", self.model, max_tokens)
         payload = self._payload(prompt, temperature, max_tokens, json_require)
