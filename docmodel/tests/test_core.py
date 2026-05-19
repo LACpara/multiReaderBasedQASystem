@@ -240,6 +240,13 @@ class TestDocViewSlice(unittest.TestCase):
         view = DocView([], self.sources)
         sliced = view.slice_by_span(span)
         assert sliced.text() == "World"
+    
+    def test_slice_by_cross_multi_spans(self) -> None:
+        span1 = Span(source_id="test", start=0, end=5)
+        span2 = Span(source_id="test", start=6, end=11)
+        view = DocView([span1, span2], self.sources)
+        sliced = view.slice(2, 8)
+        assert sliced.text() == "lloWor"
 
     def test_slice_by_span_invalid_source_raises(self) -> None:
         span = Span(source_id="nonexistent", start=0, end=5)
@@ -300,6 +307,24 @@ class TestDocViewSearch(unittest.TestCase):
         results = view.search(pattern)
 
         assert len(results) == 2
+
+    def tedt_sesrch_regex_case2(self) -> None:
+        """
+        测试在多个文档中搜索正则表达式。
+        """
+        text1 = "date1: 2018-12-"
+        text2 = "23, data2: 2012-11-23. oooo"
+        span1 = Span(source_id="d1", start=0, end=len(text1))
+        span2 = Span(source_id="d2", start=0, end=len(text2))
+        source1 = Source(source_id="d1", text=text1)
+        source2 = Source(source_id="d2", text=text2)
+
+        doc = DocView([span1, span2], {"d1": source1, "d2": source2})
+        results = doc.search(re.compile(r"\d{4}-\d{2}-\d{2}"))
+
+        assert len(results) == 2
+        assert results[0].text() == "2018-12-23"
+        assert results[1].text() == "2012-11-23"
 
     def test_search_callable(self) -> None:
         def custom_search(text: str):
@@ -405,9 +430,29 @@ class TestDocViewIter(unittest.TestCase):
 
         assert len(sources) == 1
 
+        text = "I love China."
+        span2 = Span(source_id="test2", start=0, end=len(text))
+        source = Source(source_id="test2", text=text)
+        sources = {"test2": source}
+        sources.update(self.sources)
+        docview = DocView([span, span2], sources)
+        results = list(docview.iter(Granularity.SOURCE))
+
+        assert len(results) == 2
+
     def test_iter_empty_view(self) -> None:
         view = DocView([], self.sources)
         chars = list(view.iter(Granularity.CHAR))
+        assert len(chars) == 0
+        chars = list(view.iter(Granularity.WORD))
+        assert len(chars) == 0
+        chars = list(view.iter(Granularity.SENTENCE))
+        assert len(chars) == 0
+        chars = list(view.iter(Granularity.PARAGRAPH))
+        assert len(chars) == 0
+        chars = list(view.iter(Granularity.LINE))
+        assert len(chars) == 0
+        chars = list(view.iter(Granularity.SOURCE))
         assert len(chars) == 0
 
 
@@ -455,6 +500,17 @@ class TestDocViewProject(unittest.TestCase):
     def setUp(self) -> None:
         self.source = Source(source_id="test", text="Hello World Python")
         self.sources = {"test": self.source}
+    
+        # 增加的新测试用例
+        self.source1 = Source(source_id="ch1", text="Chapter 1 content")
+        self.source2 = Source(source_id="ch2", text="Chapter 2 content")
+        self.source3 = Source(source_id="ch3", text="Chapter 3 content")
+        self.sources = {
+            "ch1": self.source1, 
+            "ch2": self.source2, 
+            "ch3": self.source3,
+            **self.sources
+        }
 
     def test_project_child(self) -> None:
         span = Span(source_id="test", start=0, end=18)
@@ -478,7 +534,7 @@ class TestDocViewProject(unittest.TestCase):
         result = parent.project(child)
         assert len(result) == 0
 
-    def test_to_book_spans(self) -> None:
+    def test_to_book_spans_singlesource(self) -> None:
         span = Span(source_id="test", start=5, end=10)
         view = DocView([span], self.sources)
 
@@ -486,6 +542,63 @@ class TestDocViewProject(unittest.TestCase):
         assert len(result) == 1
         assert result[0] == span
 
+    def test_project_multisource_child(self) -> None:
+        """测试跨多个 Source 的子视图投影"""
+        # 父视图跨越 3 个章节
+        parent_spans = [
+            Span("ch1", 0, len(self.source1.text)),
+            Span("ch2", 0, len(self.source2.text)),
+            Span("ch3", 0, len(self.source3.text)),
+        ]
+        parent = DocView(parent_spans, self.sources)
+        
+        # 子视图跨越章节边界
+        child_spans = [
+            Span("ch2", 5, len(self.source2.text)),
+            Span("ch3", 0, 10),
+        ]
+        child = DocView(child_spans, self.sources)
+        
+        result = parent.project(child)
+        # 应该返回父视图中的本地坐标区间
+        assert len(result) == 2
+
+    def test_project_nested_view(self) -> None:
+        """测试嵌套视图的链式投影"""
+        parent = DocView(
+            [Span("ch1", 0, len(self.source1.text))], 
+            self.sources
+        )
+        child = parent.slice(8, 16)  # "content"
+        grandchild = child.slice(2, 6)  # "nten"
+        
+        # grandchild 在 child 中的位置
+        result1 = child.project(grandchild)
+        assert result1 == [(2, 6)]
+        
+        # grandchild 在 parent 中的位置
+        result2 = parent.project(grandchild)
+        assert result2 == [(10, 14)]  # 8+2=10, 8+6=14
+
+    def test_project_empty_view(self) -> None:
+        """测试空视图投影"""
+        parent = DocView([Span("ch1", 0, 10)], self.sources)
+        child = DocView([], self.sources)
+        
+        result = parent.project(child)
+        assert len(result) == 0
+
+    def test_to_book_spans_multisource(self) -> None:
+        """测试多 Source 视图的全局 Span 转换"""
+        view = DocView(
+            [Span("ch1", 5, 10), Span("ch2", 0, 5)], 
+            self.sources
+        )
+        
+        spans = view.to_book_spans()
+        assert len(spans) == 2
+        assert spans[0].source_id == "ch1"
+        assert spans[1].source_id == "ch2"
 
 class TestDocViewExcerpt(unittest.TestCase):
     """DocView.excerpt_with_context 方法测试。"""
@@ -495,18 +608,54 @@ class TestDocViewExcerpt(unittest.TestCase):
         self.sources = {"test": self.source}
 
     def test_excerpt_with_context(self) -> None:
+        parent_span = Span(source_id="test", start=0, end=30)
+        parent = DocView([parent_span], self.sources)
+        
+        child = parent.slice(6, 11)
+        excerpt = child.excerpt_with_context(5)
+
+        assert excerpt.text() == "ello World Pyth"
+
+    def test_excerpt_at_beginning(self) -> None:
+        parent_span = Span(source_id="test", start=0, end=30)
+        parent = DocView([parent_span], self.sources)
+        
+        child = parent.slice(0, 5)
+        excerpt = child.excerpt_with_context(6)
+
+        assert excerpt.text() == "Hello World"
+
+    def test_excerpt_at_end(self) -> None:
+        parent_span = Span(source_id="test", start=0, end=30)
+        parent = DocView([parent_span], self.sources)
+        
+        child = parent.slice(20, 30)
+        excerpt = child.excerpt_with_context(7)
+
+        assert excerpt.text() == "ython Programming"
+
+    def test_excerpt_with_large_context(self) -> None:
+        parent_span = Span(source_id="test", start=0, end=30)
+        parent = DocView([parent_span], self.sources)
+        
+        child = parent.slice(6, 11)
+        excerpt = child.excerpt_with_context(100)
+
+        assert excerpt.text() == "Hello World Python Programming"
+
+    def test_excerpt_empty_view(self) -> None:
+        view = DocView([], self.sources)
+        excerpt = view.excerpt_with_context(10)
+
+        assert excerpt.length == 0
+        assert excerpt.text() == ""
+
+    def test_excerpt_no_parent(self) -> None:
         span = Span(source_id="test", start=6, end=11)
         view = DocView([span], self.sources)
         excerpt = view.excerpt_with_context(5)
 
         assert excerpt.text() == "World"
-
-    def test_excerpt_at_beginning(self) -> None:
-        span = Span(source_id="test", start=0, end=5)
-        view = DocView([span], self.sources)
-        excerpt = view.excerpt_with_context(10)
-
-        assert excerpt.text() == "Hello"
 
 
 class TestDocViewRepr(unittest.TestCase):

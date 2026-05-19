@@ -59,12 +59,12 @@
 
 | 测试文件                 | 测试类数   | 测试方法数   |
 | -------------------- | ------ | ------- |
-| test\_core.py        | 14     | 72      |
+| test\_core.py        | 15     | 78      |
 | test\_splitters.py   | 8      | 36      |
 | test\_book.py        | 7      | 34      |
 | test\_ingest.py      | 2      | 21      |
 | test\_integration.py | 13     | 12      |
-| **总计**               | **44** | **175** |
+| **总计**               | **45** | **181** |
 
 ### 3.2 按测试类型统计
 
@@ -92,6 +92,7 @@
 | DocView 迭代功能    | ✅ 已覆盖 |
 | DocView fold 操作 | ✅ 已覆盖 |
 | DocView 坐标投影    | ✅ 已覆盖 |
+| DocView 上下文摘录  | ✅ 已覆盖 |
 
 ### 4.2 Book 模块 (book.py)
 

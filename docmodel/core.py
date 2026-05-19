@@ -314,7 +314,7 @@ class DocView:
 
         for span in self._spans:
             if span.source_id == source_id:
-                if span.start <= global_offset < span.end:
+                if span.start <= global_offset <= span.end:
                     return local_offset + (global_offset - span.start)
             local_offset += span.length
 
@@ -324,9 +324,18 @@ class DocView:
         return list(self._spans)
 
     def excerpt_with_context(self, context_chars: int = 200) -> DocView:
-        start = max(0, 0 - context_chars)
-        end = min(self.length, self.length + context_chars)
-        return self.slice(start, end)
+        if len(self._spans) == 0:
+            return self
+
+        if self._parent is not None:
+            local_positions = self._parent.project(self)
+            
+            if local_positions:
+                parent_start = max(0, local_positions[0][0] - context_chars)
+                parent_end = min(self._parent.length, local_positions[-1][1] + context_chars)
+                return self._parent.slice(parent_start, parent_end)
+
+        return self
 
     def __repr__(self) -> str:
         preview = self.text()[:50]
