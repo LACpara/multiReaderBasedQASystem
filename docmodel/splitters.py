@@ -66,6 +66,7 @@ class RecursiveSplitter:
     separators: List[str] = field(default_factory=lambda: ["\n\n", "\n", "。", ".", " "])
     max_size: int = 500
     overlap: int = 50
+    keep_separator: bool = True
 
     def __call__(self, text: str) -> List[Tuple[int, int]]:
         if not text:
@@ -100,7 +101,8 @@ class RecursiveSplitter:
             part_start = current_start
             part_end = part_start + len(part)
 
-            if i < len(parts) - 1:
+            # 根据 keep_separator 决定是否添加分隔符
+            if self.keep_separator and i < len(parts) - 1:
                 part_end += len(sep)
 
             if len(part) > self.max_size:
@@ -110,9 +112,12 @@ class RecursiveSplitter:
                 if part.strip():
                     regions.append((part_start, part_end))
 
+            # 更新 current_start 时也要考虑 keep_separator
             current_start = part_end
+            if not self.keep_separator and i < len(parts) - 1:
+                current_start += len(sep)
 
-        return self._apply_overlap(regions)
+        return self._apply_overlap(regions, len(text))
 
     def _split_by_size(self, text: str, start: int, end: int) -> List[Tuple[int, int]]:
         regions: List[Tuple[int, int]] = []
@@ -123,16 +128,30 @@ class RecursiveSplitter:
             regions.append((pos, chunk_end))
             pos = chunk_end
 
-        return self._apply_overlap(regions)
+        return self._apply_overlap(regions, end)
 
-    def _apply_overlap(self, regions: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    def _apply_overlap(self, regions: List[Tuple[int, int]], text_length: int = None) -> List[Tuple[int, int]]:
         if self.overlap <= 0 or len(regions) <= 1:
             return regions
 
         result: List[Tuple[int, int]] = []
         for i, (start, end) in enumerate(regions):
             if i > 0:
-                start = max(start, result[-1][1] - self.overlap)
+                chunk_size = regions[i][1] - regions[i][0]
+                new_start = result[-1][1] - self.overlap
+                
+                # 确保起始位置不为负
+                if new_start < 0:
+                    new_start = 0
+                
+                new_end = new_start + chunk_size
+                
+                # 确保结束位置不超出原始文本范围
+                if text_length is not None and new_end > text_length:
+                    new_end = text_length
+                
+                start, end = new_start, new_end
+                
             result.append((start, end))
 
         return result

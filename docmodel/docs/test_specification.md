@@ -160,21 +160,28 @@ docmodel/tests/
 
 **TestRecursiveSplitter 类**
 
-| 测试方法                              | 测试内容   |
-| --------------------------------- | ------ |
-| test\_split\_small\_text          | 小文本处理  |
-| test\_split\_by\_separator        | 按分隔符切分 |
-| test\_split\_with\_overlap        | 重叠切分   |
-| test\_split\_empty\_text          | 空文本处理  |
-| test\_split\_chinese\_text        | 中文文本切分 |
-| test\_split\_no\_valid\_separator | 无有效分隔符 |
-| test\_split\_preserves\_content   | 内容保留   |
-| test\_repr                        | 字符串表示  |
+| 测试方法                              | 测试内容      |
+| --------------------------------- | --------- |
+| test\_split\_small\_text          | 小文本不切分    |
+| test\_split\_by\_separator        | 按分隔符切分     |
+| test\_recursive\_degradation      | 递归降级过程     |
+| test\_hard\_split\_fallback       | 硬切分回退      |
+| test\_single\_part\_over\_max\_size | 单个部分过大场景  |
+| test\_split\_with\_overlap\_correctness | 重叠计算正确性 |
+| test\_split\_empty\_text          | 空文本处理      |
+| test\_split\_chinese\_text        | 中文文本切分     |
+| test\_split\_no\_valid\_separator | 无有效分隔符回退   |
+| test\_empty\_chunk\_filtering     | 空块过滤      |
+| test\_split\_preserves\_content   | 内容完整性验证    |
+| test\_zero\_overlap               | overlap=0  |
+| test\_large\_overlap              | 大 overlap  |
+| test\_separator\_preservation     | 分隔符保留      |
+| test\_repr                        | __repr__  |
 
 **TestWindowSplitter 类**
 
-| 测试方法                                        | 测试内容   |
-| ------------------------------------------- | ------ |
+| 测试方法                                     | 测试内容    |
+| ------------------------------------------- | --------- |
 | test\_split\_with\_window                   | 滑窗切分   |
 | test\_split\_text\_shorter\_than\_window    | 文本短于窗口 |
 | test\_split\_empty\_text                    | 空文本处理  |

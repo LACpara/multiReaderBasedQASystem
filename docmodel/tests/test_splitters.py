@@ -46,11 +46,18 @@ class TestRegexSplitter(unittest.TestCase):
         assert len(regions) == 0
 
     def test_split_chapter_pattern(self) -> None:
-        splitter = RegexSplitter(pattern=r"^第[一二三四五六七八九十百]+章")
-        text = "第一章内容\n第二章内容\n第三章内容"
+        splitter = RegexSplitter(pattern=r"^第[一二三四五六七八九十百]+章\n")
+        text = "第一章\n内容一\n\n第二章\n内容二\n\n第三章\n内容三"
         regions = splitter(text)
 
-        assert len(regions) >= 1
+        assert len(regions) == 3
+        s1 = slice(*regions[0])
+        s2 = slice(*regions[1])
+        s3 = slice(*regions[2])
+
+        assert text[s1].startswith("内容一")
+        assert text[s2].startswith("内容二")
+        assert text[s3].startswith("内容三")
 
     def test_split_include_match_false(self) -> None:
         splitter = RegexSplitter(pattern=r"\n", include_match=False)
@@ -69,6 +76,7 @@ class TestRecursiveSplitter(unittest.TestCase):
     """RecursiveSplitter 测试。"""
 
     def test_split_small_text(self) -> None:
+        """小文本不切分。"""
         splitter = RecursiveSplitter(max_size=100)
         text = "Short text"
         regions = splitter(text)
@@ -77,48 +85,191 @@ class TestRecursiveSplitter(unittest.TestCase):
         assert regions[0] == (0, 10)
 
     def test_split_by_separator(self) -> None:
+        """按分隔符切分。"""
         splitter = RecursiveSplitter(separators=["\n\n", "\n"], max_size=20)
-        text = "Paragraph 1\n\nParagraph 2\n\nParagraph 3"
+        text = "Paragraph 1\n\nParagraph 2\nParagraph 3"
         regions = splitter(text)
 
         assert len(regions) >= 1
+        # 验证块大小不超过 max_size
+        assert all(end - start <= splitter.max_size for start, end in regions)
 
-    def test_split_with_overlap(self) -> None:
-        splitter = RecursiveSplitter(max_size=20, overlap=5)
-        text = "This is a longer text that needs to be split into multiple chunks."
+    def test_recursive_degradation(self) -> None:
+        """递归降级过程测试。"""
+        # 设置 overlap=0 以验证内容完整性（无重复）
+        splitter = RecursiveSplitter(separators=["\n\n", "\n", "。"], max_size=10, overlap=0)
+        text = "这是第一段话\n\n这是第二段话\n这是第三句话。这是第四句话。这是第五句话。这是第六六六六六六六六句话。"
+        regions = splitter(text)
+
+        assert len(regions) > 1
+        # 验证内容完整性（overlap=0 时无重复）
+        total_text = "".join(text[slice(*r)] for r in regions)
+        assert total_text == text
+        assert all(end - start <= splitter.max_size for start, end in regions)
+
+    def test_hard_split_fallback(self) -> None:
+        """所有分隔符失效时硬切分测试。"""
+        # 设置 overlap=0 以验证内容完整性（无重复）
+        splitter = RecursiveSplitter(separators=["XXX", "YYY"], max_size=10, overlap=0)
+        text = "This is a long text without any matching separators"
+        regions = splitter(text)
+
+        assert len(regions) > 1
+        # 验证每个块大小不超过 max_size
+        assert all(end - start <= 10 for start, end in regions)
+        # 验证内容完整性（overlap=0 时无重复）
+        total_text = "".join(text[slice(*r)] for r in regions)
+        assert total_text == text
+
+    def test_single_part_over_max_size(self) -> None:
+        """单个部分大于 max_size 的场景。"""
+        # 设置 overlap=0 以验证内容完整性（无重复）
+        splitter = RecursiveSplitter(separators=["\n\n"], max_size=20, overlap=0)
+        text = "This is a very long single paragraph that exceeds max size"
+        regions = splitter(text)
+
+        assert len(regions) > 1
+        # 验证内容完整性（overlap=0 时无重复）
+        total_text = "".join(text[slice(*r)] for r in regions)
+        assert total_text == text
+
+    def test_split_with_overlap_correctness(self) -> None:
+        """overlap 参数应该产生真正的重叠。"""
+        # 设计目标：
+        # - max_size=10, overlap=3
+        # - 相邻块之间应该有 3 个字符的重叠
+        splitter = RecursiveSplitter(max_size=10, overlap=3)
+        text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         regions = splitter(text)
 
         assert len(regions) >= 2
+        
+        # 验证所有块大小不超过 max_size
+        for start, end in regions:
+            assert end - start <= splitter.max_size
+        
+        # 验证重叠效果：相邻块之间应该有 overlap 大小的重叠
+        for i in range(1, len(regions)):
+            prev_start, prev_end = regions[i - 1]
+            curr_start, curr_end = regions[i]
+            
+            # 计算重叠大小
+            overlap_size = prev_end - curr_start
+            assert overlap_size == splitter.overlap, (
+                f"块{i-1}和块{i}之间应该有 {splitter.overlap} 个字符重叠，"
+                f"实际重叠 {overlap_size} 个字符"
+            )
 
     def test_split_empty_text(self) -> None:
+        """空文本处理。"""
         splitter = RecursiveSplitter()
         regions = splitter("")
 
         assert len(regions) == 0
 
     def test_split_chinese_text(self) -> None:
-        splitter = RecursiveSplitter(separators=["\n\n", "\n", "。"], max_size=20)
+        """中文文本切分。"""
+        # 设置 overlap=0 以验证内容完整性（无重复）
+        splitter = RecursiveSplitter(separators=["\n\n", "\n", "。"], max_size=20, overlap=0)
         text = "这是第一句话。这是第二句话。这是第三句话。"
         regions = splitter(text)
 
         assert len(regions) >= 1
+        # 验证内容完整性（overlap=0 时无重复）
+        total_text = "".join(text[slice(*r)] for r in regions)
+        assert total_text == text
 
     def test_split_no_valid_separator(self) -> None:
+        """无有效分隔符时回退。"""
         splitter = RecursiveSplitter(separators=["XXX"], max_size=10)
         text = "This is a long text without the separator"
         regions = splitter(text)
 
         assert len(regions) >= 1
+        # 验证每个块大小不超过 max_size
+        assert all(end - start <= splitter.max_size for start, end in regions)
+
+    def test_empty_chunk_filtering(self) -> None:
+        """空块过滤测试。"""
+        # 使用较小的 max_size 确保会被切分
+        splitter = RecursiveSplitter(separators=["\n\n"], max_size=20)
+        # 创建足够长的文本，中间有空段落
+        text = "\n\n\n\n" + "A" * 15 + "\n\n\n\n" + "B" * 15 + "\n\n\n\n"
+        regions = splitter(text)
+
+        # 验证过滤了空块
+        for start, end in regions:
+            chunk = text[start:end]
+            assert chunk.strip() != ""
 
     def test_split_preserves_content(self) -> None:
+        """内容完整性验证。"""
         splitter = RecursiveSplitter(max_size=20)
         text = "Hello World"
         regions = splitter(text)
 
-        total_text = "".join(text[r[0] : r[1]] for r in regions)
+        total_text = "".join(text[slice(*r)] for r in regions)
         assert total_text == text
 
+    def test_zero_overlap(self) -> None:
+        """overlap=0 的场景。"""
+        splitter = RecursiveSplitter(max_size=20, overlap=0)
+        text = "This is a text that will be split without overlap"
+        regions = splitter(text)
+
+        assert len(regions) > 1
+        # 验证无重叠
+        for i in range(1, len(regions)):
+            assert regions[i][0] == regions[i - 1][1]
+
+    def test_large_overlap(self) -> None:
+        """overlap 很大的场景（接近 max_size）。"""
+        # 设计目标：当 overlap 接近 max_size 时，应该产生较大的重叠
+        splitter = RecursiveSplitter(max_size=10, overlap=8)
+        text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        regions = splitter(text)
+
+        assert len(regions) > 2
+        
+        # 验证所有块大小不超过 max_size
+        for start, end in regions:
+            assert end - start <= splitter.max_size
+        
+        # 验证每个相邻块之间的重叠都等于 overlap
+        for i in range(1, len(regions)):
+            prev_end = regions[i - 1][1]
+            curr_start = regions[i][0]
+            overlap_size = prev_end - curr_start
+            assert overlap_size == splitter.overlap
+
+    def test_separator_preservation(self) -> None:
+        """分隔符保留验证。"""
+        # 设置 overlap=0，避免 overlap 逻辑干扰测试
+        splitter = RecursiveSplitter(separators=["\n\n"], max_size=20, keep_separator=True, overlap=0)
+        part1 = "First paragraph with enough characters"
+        part2 = "Second paragraph also has enough characters"
+        text = part1 + "\n\n" + part2
+        regions = splitter(text)
+
+        # 验证分隔符被正确保留
+        reconstructed = ""
+        for start, end in regions:
+            reconstructed += text[start:end]
+        assert reconstructed == text
+    
+    def test_separator_drop(self) -> None:
+        """分隔符丢弃"""
+        # 设置 overlap=0，避免 overlap 逻辑干扰测试
+        splitter = RecursiveSplitter(separators=["\n\n"], max_size=40, keep_separator=False, overlap=0)
+        part1 = "First paragraph with enough characters"
+        part2 = "Second paragraph also has enough characters"
+        text = part1 + "\n\n" + part2
+        regions = splitter(text)
+        total_text = "".join([text[slice(*r)] for r in regions])
+        assert total_text == part1 + part2
+
     def test_repr(self) -> None:
+        """__repr__ 方法测试。"""
         splitter = RecursiveSplitter(max_size=500, overlap=50)
         assert "RecursiveSplitter" in repr(splitter)
         assert "500" in repr(splitter)
