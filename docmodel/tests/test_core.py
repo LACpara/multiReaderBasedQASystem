@@ -53,8 +53,22 @@ class TestSource(unittest.TestCase):
         assert isinstance(source.meta, MappingProxyType)
 
     def test_source_unicode_text(self) -> None:
-        source = Source(source_id="test", text="你好世界")
-        assert source.length == 4
+        # 测试基本中文
+        source1 = Source(source_id="zh", text="你好世界")
+        assert source1.length == 4
+        assert source1.text == "你好世界"
+        
+        # 测试 emoji
+        source2 = Source(source_id="emoji", text="🌍🎯")
+        assert source2.length == 2
+        
+        # 测试混合文本
+        source3 = Source(source_id="mixed", text="Hello 世界 🌍")
+        assert source3.length == 10
+        
+        # 测试特殊字符
+        source4 = Source(source_id="special", text="éñàç")
+        assert source4.length == 4
 
     def test_source_long_text(self) -> None:
         long_text = "a" * 1000000
