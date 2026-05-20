@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
+from pickletools import read_string1
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Protocol, Tuple
+from deprecated.sphinx import deprecated
 
 if TYPE_CHECKING:
     pass
@@ -225,6 +227,7 @@ class SentenceSplitter:
         return f"SentenceSplitter(lang={self.lang!r})"
 
 
+@deprecated(version="1.0", reason="该类的设计暂不明确，故而弃用")
 @dataclass
 class TagSplitter:
     """
