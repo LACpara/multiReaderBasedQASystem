@@ -174,9 +174,10 @@ docmodel/tests/
 | test\_empty\_chunk\_filtering     | 空块过滤      |
 | test\_split\_preserves\_content   | 内容完整性验证    |
 | test\_zero\_overlap               | overlap=0  |
-| test\_large\_overlap              | 大 overlap  |
-| test\_separator\_preservation     | 分隔符保留      |
-| test\_repr                        | __repr__  |
+| test\_large\_overlap              | 大 overlap |
+| test\_separator\_preservation     | 分隔符保留  |
+| test\_separator\_drop             | 分割符丢弃  |
+| test\_repr                        | \_\_repr\_\_  |
 
 **TestWindowSplitter 类**
 
@@ -203,8 +204,8 @@ docmodel/tests/
 
 **TestTagSplitter 类**
 
-| 测试方法                                 | 测试内容  |
-| ------------------------------------ | ----- |
+| 测试方法                               | 测试内容  |
+| ------------------------------------ | -------- |
 | test\_call\_raises\_not\_implemented | 未实现异常 |
 | test\_split\_with\_tags              | 按标签切分 |
 | test\_repr                           | 字符串表示 |

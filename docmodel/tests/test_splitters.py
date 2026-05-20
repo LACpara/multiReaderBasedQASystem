@@ -4,7 +4,9 @@ Splitter 模块单元测试。
 测试 RegexSplitter, RecursiveSplitter, WindowSplitter, SentenceSplitter, TagSplitter。
 """
 
+from re import split
 import unittest
+from typing import List, Tuple
 
 import pytest
 
@@ -204,7 +206,7 @@ class TestRecursiveSplitter(unittest.TestCase):
 
     def test_split_preserves_content(self) -> None:
         """内容完整性验证。"""
-        splitter = RecursiveSplitter(max_size=20)
+        splitter = RecursiveSplitter(max_size=5, overlap=0)
         text = "Hello World"
         regions = splitter(text)
 
@@ -335,14 +337,20 @@ class TestSentenceSplitter(unittest.TestCase):
         text = "这是第一句话。这是第二句话！这是第三句话？"
         regions = splitter(text)
 
-        assert len(regions) >= 1
+        assert len(regions) == 3
+        assert text[slice(*regions[0])] == "这是第一句话。"
+        assert text[slice(*regions[1])] == "这是第二句话！"
+        assert text[slice(*regions[2])] == "这是第三句话？"
 
     def test_split_english_sentences(self) -> None:
         splitter = SentenceSplitter(lang="en")
         text = "First sentence. Second sentence! Third sentence?"
         regions = splitter(text)
 
-        assert len(regions) >= 1
+        assert len(regions) == 3
+        assert text[slice(*regions[0])] == "First sentence."
+        assert text[slice(*regions[1])] == "Second sentence! "
+        assert text[slice(*regions[2])] == "Third sentence?"
 
     def test_split_empty_text(self) -> None:
         splitter = SentenceSplitter()
@@ -382,7 +390,7 @@ class TestTagSplitter(unittest.TestCase):
     def test_split_with_tags(self) -> None:
         splitter = TagSplitter(tag_key="chapter")
         boundaries = [(0, 10), (10, 20)]
-        result = splitter.split_with_tags(None, boundaries)  # type: ignore
+        result = splitter.split_with_tags(None, boundaries)
 
         assert result == boundaries
 
@@ -421,17 +429,86 @@ class TestMergeRegions(unittest.TestCase):
 
 
 class TestSplitterProtocol(unittest.TestCase):
-    """Splitter 协议测试。"""
+    """Splitter 协议测试：验证 DocView 对 Splitter 协议的遵循。"""
 
-    def test_custom_splitter(self) -> None:
-        def custom_splitter(text: str) -> list[tuple[int, int]]:
-            return [(0, len(text) // 2), (len(text) // 2, len(text))]
+    def setUp(self) -> None:
+        from docmodel.core import Source, Span
+        self.source = Source(source_id="test", text="Hello World Python")
+        self.sources = {"test": self.source}
 
-        text = "Hello World"
-        regions = custom_splitter(text)
+    def test_custom_splitter_with_docview(self) -> None:
+        """测试自定义 Splitter 能否被 DocView.split() 正确使用。"""
+        from docmodel.core import DocView, Span
 
-        assert len(regions) == 2
-        assert regions[0][1] == regions[1][0]
+        def custom_splitter(text: str) -> List[Tuple[int, int]]:
+            """自定义切分器：将文本从中间切分为两部分。"""
+            mid = len(text) // 2
+            return [(0, mid), (mid, len(text))]
+
+        span = Span(source_id="test", start=0, end=18)
+        view = DocView([span], self.sources)
+
+        # 使用自定义 splitter 切分
+        children = view.split(custom_splitter)
+
+        # 验证切分结果
+        assert len(children) == 2
+        assert children[0].text() == "Hello Wor"
+        assert children[1].text() == "ld Python"
+
+    def test_custom_splitter_multiple_regions(self) -> None:
+        """测试自定义 Splitter 返回多个区域时的行为。"""
+        from docmodel.core import DocView, Span
+
+        def custom_splitter(text: str) -> List[Tuple[int, int]]:
+            """自定义切分器：按固定大小切分。"""
+            chunk_size = 5
+            regions = []
+            for i in range(0, len(text), chunk_size):
+                regions.append((i, min(i + chunk_size, len(text))))
+            return regions
+
+        span = Span(source_id="test", start=0, end=15)
+        view = DocView([span], self.sources)
+
+        children = view.split(custom_splitter)
+
+        # 验证切分结果
+        assert len(children) == 3
+        assert children[0].text() == "Hello"
+        assert children[1].text() == " Worl"
+        assert children[2].text() == "d Pyt"
+
+    def test_custom_splitter_empty_regions(self) -> None:
+        """测试自定义 Splitter 返回空列表时的行为。"""
+        from docmodel.core import DocView, Span
+
+        def custom_splitter(text: str) -> List[Tuple[int, int]]:
+            """自定义切分器：不切分，返回空列表。"""
+            return []
+
+        span = Span(source_id="test", start=0, end=11)
+        view = DocView([span], self.sources)
+
+        children = view.split(custom_splitter)
+
+        # 验证返回空列表
+        assert len(children) == 0
+
+    def test_custom_splitter_invalid_region(self) -> None:
+        """测试自定义 Splitter 返回无效区域时的行为。"""
+        from docmodel.core import DocView, Span
+
+        def custom_splitter(text: str) -> List[Tuple[int, int]]:
+            """自定义切分器：返回超出范围的区域。"""
+            return [(0, len(text) + 10)]
+
+        span = Span(source_id="test", start=0, end=5)
+        view = DocView([span], self.sources)
+
+        # 应该抛出异常
+        with pytest.raises(ValueError, match="Slice end.*exceeds view length"):
+            view.split(custom_splitter)
 
 
 class TestEdgeCases(unittest.TestCase):
