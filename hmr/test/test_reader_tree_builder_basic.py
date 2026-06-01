@@ -345,8 +345,12 @@ class TestBasicIngestion:
 
     def test_splitter_return_empty_text(self, config, mock_llm_service, mock_store, mock_vector_index):
         mock_splitter = Mock(spec=SemanticTextSplitter)
+
+        long_text = "hello world" * 100
+        empty_text = ""
+
         mock_splitter.split.side_effect = [
-            ["hello world", ""], Exception("Splitter should not be called over 2 times !")]
+            [long_text, empty_text], Exception("Splitter should not be called over 2 times !")]
 
         mock_complexity = Mock(spec=ComplexityEstimator)
         mock_complexity.score.return_value = 1e10
@@ -363,7 +367,7 @@ class TestBasicIngestion:
         root = builder.ingest_document(
             document_id="doc-id",
             title="test splitter return empty text",
-            text="hello world"
+            text=long_text
         )
 
         assert isinstance(root, ReaderNode)

@@ -39,15 +39,15 @@ class ReaderTreeBuilder:
         logger.info("Starting ingestion document_id=%s title=%s", document_id, title)
         self.store.delete_document(document_id)
         self.vector_index.delete_document(document_id)
-        root = self._build_node(
-            document_id=document_id,
-            title=title,
-            text=text,
-            parent_id=None,
-            depth=0,
-            ordinal=0,
-        )
-        logger.info("Finished ingestion root_reader_id=%s", root.reader_id)
+        if root := self._build_node(
+                document_id=document_id,
+                title=title,
+                text=text,
+                parent_id=None,
+                depth=0,
+                ordinal=0,
+            ):
+            logger.info("Finished ingestion root_reader_id=%s", root.reader_id)
         return root
 
     def _build_node(
@@ -59,7 +59,8 @@ class ReaderTreeBuilder:
         parent_id: str | None,
         depth: int,
         ordinal: int,
-    ) -> ReaderNode:
+    ) -> ReaderNode | None:
+        if len(text) == 0: return
         reader_id = self._new_reader_id(document_id, depth, ordinal)
         logger.debug("Building reader id=%s depth=%s ordinal=%s", reader_id, depth, ordinal)
         child_ids = self._build_children_if_needed(document_id, title, text, reader_id, depth)
@@ -76,27 +77,28 @@ class ReaderTreeBuilder:
         parent_id: str,
         depth: int,
     ) -> list[str]:
-        if not self._should_split(text, depth):
-            return []
-        chunks = self.splitter.split(text)
-        if len(chunks) <= 1:
-            return []
+        if not self._should_split(text, depth): return []
+        chunks = [chunk for chunk in self.splitter.split(text) if chunk is not None and len(chunk) > 0]
+        if len(chunks) <= 1: return []
+
         logger.info("Reader depth=%s split into %s sub-readers", depth, len(chunks))
-        return [
-            self._build_node(
+        
+        childs = []
+        for index, chunk in enumerate(chunks):
+            child = self._build_node(
                 document_id=document_id,
                 title=f"{title} / part-{index + 1}",
                 text=chunk,
                 parent_id=parent_id,
                 depth=depth + 1,
                 ordinal=index,
-            ).reader_id
-            for index, chunk in enumerate(chunks)
-        ]
+            )
+            if child is not None:
+                childs.append(child.reader_id)
+        return childs
 
     def _should_split(self, text: str, depth: int) -> bool:
-        if depth >= self.config.max_depth:
-            return False
+        if depth >= self.config.max_depth or depth < 0: return False
         score = self.complexity.score(text)
         should_split = score >= self.config.complexity_threshold and len(text) > self.config.max_leaf_chars
         logger.debug("Split decision depth=%s score=%.2f should_split=%s", depth, score, should_split)
