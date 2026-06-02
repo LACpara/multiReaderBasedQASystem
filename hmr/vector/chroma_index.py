@@ -17,8 +17,8 @@ class ChromaVectorIndex(VectorIndex):
 
     def __init__(
         self,
-        persist_path: Path,
         collection_name: str,
+        persist_path: Path | None = None,
         embedding_model: HashEmbeddingModel | None = None,
     ) -> None:
         try:
@@ -28,12 +28,17 @@ class ChromaVectorIndex(VectorIndex):
                 "chromadb is required for ChromaVectorIndex. Run: pip install -r requirements.txt"
             ) from exc
 
-        self.persist_path = persist_path
-        self.persist_path.mkdir(parents=True, exist_ok=True)
+        if persist_path is not None:
+            self.persist_path = persist_path
+            self.persist_path.mkdir(parents=True, exist_ok=True)
+            self.client = chromadb.PersistentClient(path=str(self.persist_path))
+            logger.info("Chroma index opened at %s collection=%s", self.persist_path, collection_name)
+        else:
+            self.client = chromadb.EphemeralClient()
+            logger.info("Chroma index opened at %s collection=%s", "memory", collection_name)
+
         self.embedding_model = embedding_model or HashEmbeddingModel()
-        self.client = chromadb.PersistentClient(path=str(self.persist_path))
         self.collection = self.client.get_or_create_collection(name=collection_name)
-        logger.info("Chroma index opened at %s collection=%s", self.persist_path, collection_name)
 
     @override
     def upsert_reader(self, reader: ReaderNode) -> None:

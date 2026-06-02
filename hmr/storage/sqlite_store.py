@@ -17,12 +17,16 @@ logger = logging.getLogger(__name__)
 class SQLiteKnowledgeStore(KnowledgeStore):
     """SQLite-backed implementation of the structured storage port."""
 
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.connection = sqlite3.connect(self.db_path)
+    def __init__(self, db_path: Path | None = None) -> None:
+        if db_path is not None:
+            self.db_path = db_path
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            self.connection = sqlite3.connect(self.db_path)
+            logger.info("SQLite store opened at %s", self.db_path)
+        else:
+            self.connection = sqlite3.connect(":memory:")
+            logger.info("SQLite store opened at memory")
         self.connection.row_factory = sqlite3.Row
-        logger.info("SQLite store opened at %s", self.db_path)
 
     @override
     def init_schema(self) -> None:

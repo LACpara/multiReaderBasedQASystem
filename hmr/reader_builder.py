@@ -60,7 +60,7 @@ class ReaderTreeBuilder:
         depth: int,
         ordinal: int,
     ) -> ReaderNode | None:
-        if len(text) == 0: return
+        if len(text) == 0: return None
         reader_id = self._new_reader_id(document_id, depth, ordinal)
         logger.debug("Building reader id=%s depth=%s ordinal=%s", reader_id, depth, ordinal)
         child_ids = self._build_children_if_needed(document_id, title, text, reader_id, depth)
