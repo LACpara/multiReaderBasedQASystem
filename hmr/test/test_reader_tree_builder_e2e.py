@@ -78,18 +78,18 @@ def verify_tree_structure(root_node: ReaderNode, all_nodes: List[ReaderNode]) ->
             assert child_node.parent_id == node.reader_id, \
                 f"子节点 {child_id} 的 parent_id 不正确"
     
-    # 验证 ordinal 顺序正确（同一层级连续从0开始）
-    nodes_by_depth = {}
+    # 验证 ordinal 顺序正确（同一父节点的直接子节点之间连续从0开始）
+    nodes_by_parent = {}
     for node in all_nodes:
-        if node.depth not in nodes_by_depth:
-            nodes_by_depth[node.depth] = []
-        nodes_by_depth[node.depth].append(node)
+        if node.parent_id not in nodes_by_parent:
+            nodes_by_parent[node.parent_id] = []
+        nodes_by_parent[node.parent_id].append(node)
     
-    for depth, nodes in nodes_by_depth.items():
+    for parent_id, nodes in nodes_by_parent.items():
         ordinals = sorted([node.ordinal for node in nodes])
         expected_ordinals = list(range(len(nodes)))
         assert ordinals == expected_ordinals, \
-            f"depth={depth} 的 ordinal 不连续或不正确"
+            f"父节点 {parent_id} 的子节点 ordinal 不连续或不正确: {ordinals}"
     
     # 验证 is_leaf 属性正确
     for node in all_nodes:
@@ -276,29 +276,43 @@ class TestReaderTreeBuilderEndToEnd:
         """
         TC-RTB-E-002: 多级分割端到端测试
 
-        测试场景：2级分割，多个节点
-        预期结果：树结构完整性，list_document_readers 返回正确数量
+        测试场景：2级分割，复杂树结构，同一深度节点来自不同父节点
+        预期结果：树结构完整性，ordinal 在不同父节点之间可以重叠但在同一父节点内必须连续
+        预期树结构：
+            Root (depth=0)
+            ├── A (depth=1, ordinal=0)
+            │   ├── A1 (depth=2, ordinal=0)
+            │   └── A2 (depth=2, ordinal=1)
+            ├── B (depth=1, ordinal=1)
+            │   ├── B1 (depth=2, ordinal=0)
+            │   └── B2 (depth=2, ordinal=1)
+            └── C (depth=1, ordinal=2)  # 不分割
         """
         # 足够长的文本以满足长度条件
         long_text = "这是一个需要多级分割的长文档。" * 50
         
-        # Mock splitter 控制分割行为
+        # Mock splitter 控制分割行为 - 创建复杂树结构
         mock_splitter = create_mock_splitter({
-            long_text: ["chunk1-1" * 20, "chunk1-2" * 20, "chunk1-3" * 20],  # depth=0 分割为3个
-            "chunk1-1" * 20: ["chunk2-1" * 20, "chunk2-2" * 20],              # depth=1, ordinal=0 分割为2个
-            "chunk1-2" * 20: [],                                     # depth=1, ordinal=1 不分割（空列表）
-            "chunk1-3" * 20: ["chunk2-3" * 20]                            # depth=1, ordinal=2 返回1个（不分割）
+            long_text: ["chunk-A" * 20, "chunk-B" * 20, "chunk-C" * 20],  # depth=0 分割为3个
+            "chunk-A" * 20: ["chunk-A1" * 20, "chunk-A2" * 20],            # A 分割为2个
+            "chunk-B" * 20: ["chunk-B1" * 20, "chunk-B2" * 20],            # B 分割为2个
+            "chunk-C" * 20: [],                                             # C 不分割
+            "chunk-A1" * 20: [],                                            # A1 不分割
+            "chunk-A2" * 20: [],                                            # A2 不分割
+            "chunk-B1" * 20: [],                                            # B1 不分割
+            "chunk-B2" * 20: [],                                            # B2 不分割
         })
 
         # Mock complexity estimator 返回高评分，确保触发分割
         mock_complexity = create_mock_complexity({
             long_text: 2000.0,
-            "chunk1-1" * 20: 2000.0,
-            "chunk1-2" * 20: 500.0,  # 不分割
-            "chunk1-3" * 20: 500.0,  # 不分割
-            "chunk2-1" * 20: 2000.0,
-            "chunk2-2" * 20: 2000.0,
-            "chunk2-3" * 20: 500.0,
+            "chunk-A" * 20: 2000.0,   # 分割
+            "chunk-B" * 20: 2000.0,   # 分割
+            "chunk-C" * 20: 500.0,    # 不分割
+            "chunk-A1" * 20: 500.0,   # 不分割
+            "chunk-A2" * 20: 500.0,   # 不分割
+            "chunk-B1" * 20: 500.0,   # 不分割
+            "chunk-B2" * 20: 500.0,   # 不分割
         })
 
         builder = ReaderTreeBuilder(
@@ -319,9 +333,9 @@ class TestReaderTreeBuilderEndToEnd:
         # 获取所有节点
         all_nodes = memory_knowledge_store.list_document_readers(document_id="doc-e2e-2")
 
-        # 预期：1(根) + 3(depth1) + 2(depth2) = 6 个节点
-        # 根节点分割为3个子节点，其中第一个子节点再分割为2个孙子节点
-        assert len(all_nodes) == 6, f"预期6个节点，实际{len(all_nodes)}个"
+        # 预期：1(根) + 3(depth1) + 4(depth2) = 8 个节点
+        # 根节点分割为3个子节点(A,B,C)，其中A和B各分割为2个孙子节点
+        assert len(all_nodes) == 8, f"预期8个节点，实际{len(all_nodes)}个"
 
         # 验证树结构
         verify_tree_structure(root, all_nodes)
@@ -329,7 +343,19 @@ class TestReaderTreeBuilderEndToEnd:
 
         # 验证层级分布
         counts = count_nodes_by_depth(all_nodes)
-        assert counts == {0: 1, 1: 3, 2: 2}, f"层级分布不正确: {counts}"
+        assert counts == {0: 1, 1: 3, 2: 4}, f"层级分布不正确: {counts}"
+
+        # 验证同一深度的节点来自不同父节点（ordinal 会重叠）
+        nodes_by_depth = {}
+        for node in all_nodes:
+            if node.depth not in nodes_by_depth:
+                nodes_by_depth[node.depth] = []
+            nodes_by_depth[node.depth].append(node)
+        
+        # depth=2 有4个节点，来自2个不同父节点，ordinal 应该是 [0,1,0,1]
+        depth2_ordinals = sorted([node.ordinal for node in nodes_by_depth[2]])
+        assert depth2_ordinals == [0, 0, 1, 1], \
+            f"depth=2 的 ordinal 应该重叠: {depth2_ordinals}"
 
     # =========================================================================
     # TC-RTB-E-003: 文档覆盖写入
