@@ -5,6 +5,8 @@ ReaderTreeBuilder 端到端功能测试
 遵循测试设计文档：test_reader_tree_builder_spec_revised.md
 """
 
+from venv import logger
+
 import pytest
 from unittest.mock import Mock, MagicMock
 from typing import Callable, List
@@ -154,36 +156,42 @@ class TestReaderTreeBuilderEndToEnd:
     @pytest.fixture
     def memory_vector_index(self):
         """返回 Mock 的 VectorIndex（模拟内存模式）"""
-        mock_index = Mock(spec=VectorIndex)
-        # 存储 upsert 的节点
-        indexed_nodes = {}
+        try:
+            import chromadb
+            vector_index = ChromaVectorIndex(collection_name="default-collection-name")
+        except ImportError:
+            logger.warning("dependency `chromdb` is not found. use mock vector index component instead.")
+            mock_index = Mock(spec=VectorIndex)
+            # 存储 upsert 的节点
+            indexed_nodes = {}
+            
+            def upsert_reader(node):
+                indexed_nodes[node.reader_id] = node
+            
+            def delete_document(document_id):
+                indexed_nodes.clear()
+            
+            def query(question, *, top_k, where):
+                document_id = where.get("document_id")
+                results = []
+                for reader_id, node in indexed_nodes.items():
+                    if document_id is None or node.document_id == document_id:
+                        from hmr.domain import VectorCandidate
+                        results.append(VectorCandidate(
+                            reader_id=reader_id,
+                            score=1.0,
+                            document="test",
+                            metadata={"document_id": node.document_id}
+                        ))
+                return results[:top_k]
+            
+            mock_index.upsert_reader = upsert_reader
+            mock_index.delete_document = delete_document
+            mock_index.query = query
+            mock_index.close = Mock()
+            vector_index = mock_index
         
-        def upsert_reader(node):
-            indexed_nodes[node.reader_id] = node
-        
-        def delete_document(document_id):
-            indexed_nodes.clear()
-        
-        def query(question, *, top_k, where):
-            document_id = where.get("document_id")
-            results = []
-            for reader_id, node in indexed_nodes.items():
-                if document_id is None or node.document_id == document_id:
-                    from hmr.domain import VectorCandidate
-                    results.append(VectorCandidate(
-                        reader_id=reader_id,
-                        score=1.0,
-                        document="test",
-                        metadata={"document_id": node.document_id}
-                    ))
-            return results[:top_k]
-        
-        mock_index.upsert_reader = upsert_reader
-        mock_index.delete_document = delete_document
-        mock_index.query = query
-        mock_index.close = Mock()
-        
-        return mock_index
+        return vector_index
 
     @pytest.fixture
     def heuristic_llm_service(self):
