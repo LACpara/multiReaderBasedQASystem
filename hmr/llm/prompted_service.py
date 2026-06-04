@@ -8,6 +8,7 @@ from typing_extensions import override
 
 from hmr.utils import retry
 from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge
+from hmr.prompt_loader import PromptLoader
 from hmr.llm.base import LLMClient, ReaderLLMService
 
 logger = logging.getLogger(__name__)
@@ -21,25 +22,26 @@ class PromptedReaderLLMService(ReaderLLMService):
     this service in without changing storage, vector search, or core orchestration.
     """
 
-    def __init__(self, client: LLMClient) -> None:
+    def __init__(self, client: LLMClient, prompt_loader: PromptLoader = None) -> None:
         self.client = client
+        self.prompt_loader = prompt_loader or PromptLoader(Path(__file__).resolve().parent.parent / "promptTemplates")
 
     @override
     def extract_knowledge(self, text: str, *, title: str) -> ReaderKnowledge:
-        prompt = self._knowledge_prompt(text, title)
+        prompt = self.prompt_loader.get_prompt("knowledge_extract", text=text, title=title)
         payload = self._json_call(prompt)
         return ReaderKnowledge.from_dict({**payload, "source_excerpt": text[:500]})
 
     @override
     def build_capability_questions(self, knowledge: ReaderKnowledge, *, title: str) -> list[str]:
-        prompt = self._questions_prompt(knowledge, title)
+        prompt = self.prompt_loader.get_prompt("question_set_build", knowledge=knowledge, title=title)
         payload = self._json_call(prompt)
         questions = payload.get("capability_questions", [])
         return [str(question) for question in questions][:10]
 
     @override
     def evaluate_activation(self, knowledge: ReaderKnowledge, question: str) -> ActivationDecision:
-        prompt = self._activation_prompt(knowledge, question)
+        prompt = self.prompt_loader.get_prompt("evluate_activation", knowledge=knowledge, question=question)
         payload = self._json_call(prompt)
         return ActivationDecision(
             should_answer=bool(payload.get("should_answer", False)),
@@ -57,7 +59,7 @@ class PromptedReaderLLMService(ReaderLLMService):
         reader_id: str,
         title: str,
     ) -> ReaderAnswer:
-        prompt = self._answer_prompt(knowledge, question)
+        prompt = self.prompt_loader.get_prompt("retrival_answer", knowledge=knowledge, question=question)
         payload = self._json_call(prompt)
         return ReaderAnswer(
             reader_id=reader_id,
@@ -69,7 +71,7 @@ class PromptedReaderLLMService(ReaderLLMService):
 
     @override
     def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> str:
-        prompt = self._merge_prompt(question, answers)
+        prompt = self.prompt_loader.get_prompt("retrival_merge", question=question, answers=answers)
         result = self.client.complete(prompt, temperature=0.0, max_tokens=900).strip()
         return result
     
@@ -88,65 +90,3 @@ class PromptedReaderLLMService(ReaderLLMService):
             stripped = stripped.split("\n", 1)[1]
             stripped = stripped.rsplit("```", 1)[0]
         return stripped.strip()
-
-    def _knowledge_prompt(self, text: str, title: str) -> str:
-        return f"""
-你是分层 Reader 系统中的知识提炼器。请只基于输入文本提炼结构化知识。
-返回严格 JSON：
-{{
-    "summary": "...",
-    "entities": ["..."],
-    "relations": ["..."],
-    "exceptions": ["..."]
-}}
-
-标题：{title}
-文本：
-{text}
-""".strip()
-
-    def _questions_prompt(self, knowledge: ReaderKnowledge, title: str) -> str:
-        return f"""
-请根据 Reader 知识生成它能够回答的问题边界。
-返回严格 JSON：
-{{"capability_questions": ["..."]}}
-
-标题：{title}
-知识：{json.dumps(knowledge.to_dict(), ensure_ascii=False)}
-""".strip()
-
-    def _activation_prompt(self, knowledge: ReaderKnowledge, question: str) -> str:
-        return f"""
-判断该 Reader 是否应回答用户问题。只基于 Reader 知识，不要外推。
-如果判断可以回答（或者部分地进行回答），通过 sub_question 字段定义自己要回答的问题（这应该是一个问句）。
-返回严格 JSON：
-{{
-    "should_answer": "boolean",
-    "score": "float:0~1",
-    "sub_question": "...",
-    "reason": "..."
-}}
-
-问题：{question}
-知识：{json.dumps(knowledge.to_dict(), ensure_ascii=False)}
-""".strip()
-
-    def _answer_prompt(self, knowledge: ReaderKnowledge, question: str) -> str:
-        return f"""
-请只基于 Reader 知识回答问题，可部分回答。
-返回严格 JSON：
-{{"answer": "...", "confidence": 0.0}}
-
-问题：{question}
-知识：{json.dumps(knowledge.to_dict(), ensure_ascii=False)}
-""".strip()
-
-    def _merge_prompt(self, question: str, answers: list[ReaderAnswer]) -> str:
-        serialized = [asdict(answer) for answer in answers]
-        return f"""
-请整合多个 Reader 的部分回答，去除重复、保留高置信度信息。
-只能使用给定回答中的信息，无法确定则说明不足。
-
-问题：{question}
-Reader 回答：{json.dumps(serialized, ensure_ascii=False)}
-""".strip()
