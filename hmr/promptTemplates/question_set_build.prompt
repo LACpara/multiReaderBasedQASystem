@@ -1,5 +1,5 @@
 @param:title
-@param:knowledges
+@param:knowledge
 @begin
 请根据 Reader 知识生成它能够回答的问题边界。
 返回严格 JSON：
@@ -8,5 +8,5 @@
 ```
 
 标题：{title}
-知识：{knowledges}
+知识：{knowledge}
 @end

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from dataclasses import asdict
 from typing import Any
 from typing_extensions import override
 
 from hmr.utils import retry
-from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge
+from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge, CompleteAnswer
 from hmr.prompt_loader import PromptLoader
 from hmr.llm.base import LLMClient, ReaderLLMService
 
@@ -74,6 +75,95 @@ class PromptedReaderLLMService(ReaderLLMService):
         prompt = self.prompt_loader.get_prompt("retrival_merge", question=question, answers=answers)
         result = self.client.complete(prompt, temperature=0.0, max_tokens=900).strip()
         return result
+    
+    @override
+    def aggregate_children_knowledge(
+        self,
+        children_knowledge: list[ReaderKnowledge],
+        *,
+        title: str
+    ) -> ReaderKnowledge:
+        children_json = json.dumps([k.to_dict() for k in children_knowledge], ensure_ascii=False)
+        prompt = self.prompt_loader.get_prompt("aggregate_knowledge", title=title, children_knowledge_json=children_json)
+        payload = self._json_call(prompt)
+        return ReaderKnowledge.from_dict(payload)
+    
+    @override
+    def estimate_capability_from_children(
+        self,
+        children_capabilities: list[list[str]],
+        *,
+        title: str,
+        limits: int = -1
+    ) -> list[str]:
+        caps_json = json.dumps(children_capabilities, ensure_ascii=False)
+        prompt = self.prompt_loader.get_prompt("estimate_capability", title=title, children_capabilities_json=caps_json)
+        payload = self._json_call(prompt)
+        questions = payload.get("capability_questions", [])
+        return [str(q) for q in questions][:limits]
+    
+    @override
+    def detect_information_gaps(
+        self,
+        text: str,
+        knowledge: ReaderKnowledge,
+        *,
+        title: str
+    ) -> list[str]:
+        knowledge_json = json.dumps(knowledge.to_dict(), ensure_ascii=False)
+        prompt = self.prompt_loader.get_prompt("detect_gaps", title=title, text=text, knowledge_json=knowledge_json)
+        payload = self._json_call(prompt)
+        gaps = payload.get("gaps", [])
+        return [str(g) for g in gaps]
+    
+    @override
+    def integrate_knowledge(
+        self,
+        original_knowledge: ReaderKnowledge,
+        complete_answers: list[CompleteAnswer],
+        *,
+        title: str
+    ) -> ReaderKnowledge:
+        orig_json = json.dumps(original_knowledge.to_dict(), ensure_ascii=False)
+        answers_json = json.dumps([a.to_dict() for a in complete_answers], ensure_ascii=False)
+        prompt = self.prompt_loader.get_prompt("integrate_knowledge", title=title, original_knowledge_json=orig_json, answers_json=answers_json)
+        payload = self._json_call(prompt)
+        result = ReaderKnowledge.from_dict(payload)
+        result.capability_questions = original_knowledge.capability_questions
+        result.source_excerpt = original_knowledge.source_excerpt
+        return result
+    
+    @override
+    def answer_backward_inquiry(
+        self,
+        knowledge: ReaderKnowledge,
+        question: str,
+        *,
+        reader_id: str,
+        title: str
+    ) -> tuple[str, str | None, float]:
+        knowledge_json = json.dumps(knowledge.to_dict(), ensure_ascii=False)
+        prompt = self.prompt_loader.get_prompt("answer_backward", title=title, knowledge_json=knowledge_json, question=question)
+        payload = self._json_call(prompt)
+        answered = str(payload.get("answered_content", ""))
+        remaining = payload.get("remaining_question")
+        remaining = str(remaining) if remaining is not None else None
+        confidence = float(payload.get("confidence", 0.0))
+        return answered, remaining, confidence
+    
+    @override
+    def detect_information_gaps_from_knowledge(
+        self,
+        knowledge: ReaderKnowledge,
+        *,
+        title: str
+    ) -> list[str]:
+        """从知识中检测信息缺口（父节点专用），返回需要向上游询问的问题列表"""
+        knowledge_json = json.dumps(knowledge.to_dict(), ensure_ascii=False)
+        prompt = self.prompt_loader.get_prompt("detect_gaps_from_knowledge", title=title, knowledge_json=knowledge_json)
+        payload = self._json_call(prompt)
+        gaps = payload.get("gaps", [])
+        return [str(g) for g in gaps]
     
     @retry(retries=5)
     def _json_call(self, prompt: str) -> dict[str, Any]:

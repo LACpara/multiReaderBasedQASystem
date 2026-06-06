@@ -5,7 +5,7 @@ import re
 from collections import Counter
 from typing_extensions import override
 
-from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge
+from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge, CompleteAnswer
 from hmr.llm.base import ReaderLLMService
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,92 @@ class HeuristicReaderLLMService(ReaderLLMService):
         lines.append("")
         lines.append("参考 Reader：" + ", ".join(answer.title for answer in answers))
         return "\n".join(lines)
+    
+    @override
+    def aggregate_children_knowledge(
+        self,
+        children_knowledge: list[ReaderKnowledge],
+        *,
+        title: str
+    ) -> ReaderKnowledge:
+        all_summaries = [k.summary for k in children_knowledge if k.summary]
+        all_entities = []
+        all_relations = []
+        all_exceptions = []
+        for k in children_knowledge:
+            all_entities.extend(k.entities)
+            all_relations.extend(k.relations)
+            all_exceptions.extend(k.exceptions)
+        
+        combined_summary = " ".join(all_summaries)[:500]
+        combined_excerpt = "\n---\n".join([k.summary[:100] for k in children_knowledge if k.summary])[:500]
+        
+        return ReaderKnowledge(
+            summary=combined_summary,
+            entities=self._deduplicate(all_entities)[:15],
+            relations=self._deduplicate(all_relations)[:10],
+            exceptions=self._deduplicate(all_exceptions)[:8],
+            source_excerpt=combined_excerpt,
+        )
+    
+    @override
+    def estimate_capability_from_children(
+        self,
+        children_capabilities: list[list[str]],
+        *,
+        title: str
+    ) -> list[str]:
+        all_questions = []
+        for caps in children_capabilities:
+            all_questions.extend(caps)
+        return self._deduplicate(all_questions)[:10]
+    
+    @override
+    def detect_information_gaps(
+        self,
+        text: str,
+        knowledge: ReaderKnowledge,
+        *,
+        title: str
+    ) -> list[str]:
+        return []
+    
+    @override
+    def integrate_knowledge(
+        self,
+        original_knowledge: ReaderKnowledge,
+        complete_answers: list[CompleteAnswer],
+        *,
+        title: str
+    ) -> ReaderKnowledge:
+        return original_knowledge
+    
+    @override
+    def answer_backward_inquiry(
+        self,
+        knowledge: ReaderKnowledge,
+        question: str,
+        *,
+        reader_id: str,
+        title: str
+    ) -> tuple[str, str | None, float]:
+        score = self._overlap_score(question, knowledge.searchable_text())
+        if score > 0.1:
+            sentences = self._sentences(knowledge.searchable_text())
+            selected = self._select_sentences(question, sentences)
+            answered = "\n".join(selected) if selected else ""
+            return answered, None, min(1.0, 0.3 + score)
+        return "", question, 0.0
+
+    @override
+    def detect_information_gaps_from_knowledge(
+        self,
+        knowledge: ReaderKnowledge,
+        *,
+        title: str
+    ) -> list[str]:
+        """从知识中检测信息缺口（父节点专用）- 启发式实现"""
+        return []
 
     def _summary(self, sentences: list[str]) -> str:
         return " ".join(sentences[:3]) if sentences else ""
