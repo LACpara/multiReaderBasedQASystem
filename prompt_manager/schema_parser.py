@@ -11,19 +11,28 @@ from prompt_manager.type_resolver import TypeResolver
 
 
 class SchemaParser:
+    # 用于存储列表描述信息的字典：{类型注解: 描述}
+    _list_descriptions: dict[type, str] = {}
+
     @classmethod
     def _build_list_type(cls, model_name: str, item_def: dict) -> type:
         """
         递归构建嵌套列表类型。
         处理任意深度的 list[list[list[...]]] 结构。
+        将每一层的描述信息存储到 _list_descriptions 中。
         """
         item_type_hint = item_def.get("_type", "")
+        item_desc = item_def.get("_desc", "")
 
         if item_type_hint.startswith("list"):
             # 递归处理嵌套列表
             nested_item_def = item_def.get("_item", {})
             inner_type = cls._build_list_type(model_name, nested_item_def)
-            return list[inner_type]
+            result_type = list[inner_type]
+            # 存储当前层的描述信息
+            if item_desc:
+                cls._list_descriptions[result_type] = item_desc
+            return result_type
         else:
             # 非列表类型，构建对应的模型
             # 过滤掉以 "_" 开头的元数据字段，只保留实际字段定义
@@ -43,6 +52,8 @@ class SchemaParser:
 
     @classmethod
     def build_model(cls, model_name: str, schema: dict) -> type[BaseModel]:
+        # 清空之前的描述缓存
+        cls._list_descriptions.clear()
         fields = {}
 
         for key, value in schema.items():
@@ -91,14 +102,19 @@ class SchemaParser:
         """
         递归处理嵌套列表元素的 dump。
         处理任意深度的 list[list[list[...]]] 结构。
+        从 _list_descriptions 中获取描述信息。
         """
         if get_origin(item_anno) is list:
             # 递归处理嵌套列表
             inner_item_anno = get_args(item_anno)[0]
-            return {
+            result = {
                 "_type": "list",
                 "_item": cls._dump_list_item(inner_item_anno)
             }
+            # 从缓存中获取描述信息
+            if item_anno in cls._list_descriptions:
+                result["_desc"] = cls._list_descriptions[item_anno]
+            return result
         elif isinstance(item_anno, type) and issubclass(item_anno, BaseModel):
             # BaseModel 类型，直接返回字段定义（不包含 _type）
             return cls.dump_model(item_anno)

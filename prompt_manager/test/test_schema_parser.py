@@ -472,7 +472,7 @@ class TestSchemaParserResverse:
         assert dumped["outer"]["inner"]["value"]["_default"] == "deep"
 
     def test_list_of_list_schema(self):
-        """测试嵌套列表类型（当前实现限制：内层列表的描述和最内层类型信息无法完全保留）"""
+        """测试嵌套列表类型，验证内层描述信息是否被正确保留"""
         schema = {
             "matrix": {
                 "_type": "list",
@@ -499,12 +499,14 @@ class TestSchemaParserResverse:
         assert dumped["matrix"]["_type"] == "list"
         assert dumped["matrix"]["_desc"] == "2D matrix"
 
-        # 验证内层列表（当前实现限制：内层列表的描述信息无法保留）
+        # 验证内层列表及其描述信息
         assert "_item" in dumped["matrix"]
         assert dumped["matrix"]["_item"]["_type"] == "list"
+        assert dumped["matrix"]["_item"]["_desc"] == "Row of numbers"
 
-        # 验证存在嵌套结构
+        # 验证最内层类型
         assert "_item" in dumped["matrix"]["_item"]
+        assert dumped["matrix"]["_item"]["_item"]["_type"] == "int"
 
     def test_literal_type_dump(self):
         """测试 Literal 类型的 dump"""
