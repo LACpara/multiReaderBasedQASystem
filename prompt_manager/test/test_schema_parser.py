@@ -1,6 +1,7 @@
 from re import M
 
 import pydantic
+from pydantic_core import SchemaError
 import pytest
 
 from prompt_manager.schema_parser import SchemaParser
@@ -236,25 +237,407 @@ class TestSchemaParser:
                 "para_1": 123,
                 "para_2": "ok"
             }])
-        # assert issubclass(model, BaseModel)
-        # assert model.__name__ == "ComplexityParams"
+        
+        print(instance.model_dump_json(indent=2))
+        pprint(model.model_json_schema(), indent=2)
 
-        # assert "complex_para" in model.model_fields
-        # assert model.model_fields["complex_para"].annotation == list[str | dict]
-        # assert model.model_fields["complex_para"].description == "complex generic type"
 
-        # assert "item_0" in model.model_fields["complex_para"].model_fields
-        # assert "item_1" in model.model_fields["complex_para"].model_fields
+class TestSchemaParserResverse:
+    def test_simple(self):
+        schema = {
+            "simple_para": {
+                "_type": "int",
+                "_desc": "the simple parameter's description",
+                "_default": 1314
+            }
+        }
 
-        # assert model.model_fields["complex_para"].model_fields["item_0"].annotation == str
-        # assert model.model_fields["complex_para"].model_fields["item_1"].annotation == dict[str, str]
+        model = SchemaParser.build_model("simple_test", schema)
+        assert issubclass(model, BaseModel)
+        assert "simple_para" in model.model_fields
 
-        # assert model.model_fields["complex_para"].model_fields["item_1"].description == "the second list element is dict"
-        # assert model.model_fields["complex_para"].model_fields["item_1"].default == dict()
-        # assert model.model_fields["complex_para"].model_fields["item_1"].model_fields["para_1"].annotation == str
+        field_info = model.model_fields["simple_para"]
+        assert not field_info.is_required()
+        assert field_info.annotation is int
+        assert field_info.default == 1314
+        assert field_info.description == "the simple parameter's description"
 
-        # assert model.model_fields["complex_para"].model_fields["item_1"].model_fields["para_1"].description == "the first dict property"
-        # assert model.model_fields["complex_para"].model_fields["item_1"].model_fields["para_2"].annotation == str
+        instance = model()
+        assert instance.simple_para == 1314
 
-        # assert model.model_fields["complex_para"].model_fields["item_1"].model_fields["para_2"].description == "the second dict property"
-        # assert model.model_fields["complex_para"].model_fields["item_1"].model_fields["para_2"].default == ""
+        with pytest.raises(pydantic.ValidationError):
+            model(simple_para="hello")
+
+        dumped = SchemaParser.dump_model(model)
+
+        assert isinstance(dumped, dict)
+        assert "simple_para" in dumped
+
+        para_info = dumped["simple_para"]
+        assert "_type" in para_info
+        assert para_info["_type"] == "int"
+        assert "_desc" in para_info
+        assert para_info["_desc"] == "the simple parameter's description"
+        assert "_default" in para_info
+        assert para_info["_default"] == 1314
+    
+    
+    def test_list_case(self):
+        schema = {
+            "list_para": {
+                "_type": "list",
+                "_desc": "the list type parameters",
+                "_item": {
+                    "para_1": {
+                        "_type": "int",
+                        "_desc": "element 1",
+                    },
+                    "para_2": {
+                        "_type": "str",
+                        "_desc": "element 2"
+                    }
+                }
+            }
+        }
+
+        model = SchemaParser.build_model("list_para", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+
+        assert "list_para" in dumped
+        para_info = dumped["list_para"]
+
+        assert "_type" in para_info
+        assert para_info["_type"] == "list"
+        assert "_desc" in para_info
+        assert para_info["_desc"] == "the list type parameters"
+        assert "_default" not in para_info
+
+        item_info = para_info["_item"]
+        for name, item_def in schema["list_para"]["_item"].items():
+            assert name in item_info
+            
+            sub_item_info = item_info[name]
+
+            assert "_type" in sub_item_info
+            assert sub_item_info["_type"] == item_def["_type"]
+
+            assert "_desc" in sub_item_info
+            assert sub_item_info["_desc"] == item_def["_desc"]
+
+            assert "_default" not in item_def
+    
+
+    def test_nested_with_single_layer_case(self):
+        schema = {
+            "nested_para": {
+                "_type": "dict",
+                "_desc": "the nested parameter",
+                "para_a": {
+                    "_type": "int",
+                    "_desc": "para a ~",
+                },
+                "para_b": {
+                    "_type": "str",
+                    "_desc": "para b ~",
+                    "_default": "hello world"
+                }
+            }
+        }
+
+        model = SchemaParser.build_model("nested_para", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+
+        assert "nested_para" in dumped
+        para_info = dumped["nested_para"]
+
+        assert "_type" in para_info
+        assert para_info["_type"] == "dict"
+        assert "_desc" in para_info
+        assert para_info["_desc"] == "the nested parameter"
+        assert "_default" not in para_info
+
+        assert "para_a" in para_info
+        nested_para_a_info = para_info["para_a"]
+        assert "para_b" in para_info
+        nested_para_b_info = para_info["para_b"]
+
+        assert "_type" in nested_para_a_info
+        assert nested_para_a_info["_type"] == "int"
+        assert "_desc" in nested_para_a_info
+        assert nested_para_a_info["_desc"] == "para a ~"
+        assert "_default" not in nested_para_a_info
+
+        assert "_type" in nested_para_b_info
+        assert nested_para_b_info["_type"] == "str"
+        assert "_desc" in nested_para_b_info
+        assert nested_para_b_info["_desc"] == "para b ~"
+        assert "_default" in nested_para_b_info
+        assert nested_para_b_info["_default"] == "hello world"
+
+    def test_multiple_basic_types(self):
+        """测试多种基本类型的 schema"""
+        schema = {
+            "name": {
+                "_type": "str",
+                "_desc": "User name",
+                "_default": "Anonymous",
+            },
+            "age": {
+                "_type": "int",
+                "_desc": "User age",
+            },
+            "is_active": {
+                "_type": "bool",
+                "_desc": "Active status",
+                "_default": True,
+            },
+            "score": {
+                "_type": "float",
+                "_desc": "User score",
+                "_default": 95.5,
+            },
+        }
+
+        model = SchemaParser.build_model("MultipleTypes", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+        assert len(dumped) == 4
+
+        # 测试字符串类型
+        assert dumped["name"]["_type"] == "str"
+        assert dumped["name"]["_desc"] == "User name"
+        assert dumped["name"]["_default"] == "Anonymous"
+
+        # 测试整数类型（无默认值）
+        assert dumped["age"]["_type"] == "int"
+        assert dumped["age"]["_desc"] == "User age"
+        assert "_default" not in dumped["age"]
+
+        # 测试布尔类型
+        assert dumped["is_active"]["_type"] == "bool"
+        assert dumped["is_active"]["_desc"] == "Active status"
+        assert dumped["is_active"]["_default"] == True
+
+        # 测试浮点数类型
+        assert dumped["score"]["_type"] == "float"
+        assert dumped["score"]["_desc"] == "User score"
+        assert dumped["score"]["_default"] == 95.5
+
+    def test_deeply_nested_schema(self):
+        """测试深层嵌套的 schema 结构"""
+        schema = {
+            "outer": {
+                "_type": "dict",
+                "_desc": "Outer dict",
+                "inner": {
+                    "_type": "dict",
+                    "_desc": "Inner dict",
+                    "value": {
+                        "_type": "str",
+                        "_desc": "Deep value",
+                        "_default": "deep",
+                    },
+                },
+            },
+        }
+
+        model = SchemaParser.build_model("DeepNested", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+
+        # 验证外层
+        assert "outer" in dumped
+        assert dumped["outer"]["_type"] == "dict"
+        assert dumped["outer"]["_desc"] == "Outer dict"
+
+        # 验证内层
+        assert "inner" in dumped["outer"]
+        assert dumped["outer"]["inner"]["_type"] == "dict"
+        assert dumped["outer"]["inner"]["_desc"] == "Inner dict"
+
+        # 验证深层值
+        assert "value" in dumped["outer"]["inner"]
+        assert dumped["outer"]["inner"]["value"]["_type"] == "str"
+        assert dumped["outer"]["inner"]["value"]["_desc"] == "Deep value"
+        assert dumped["outer"]["inner"]["value"]["_default"] == "deep"
+
+    def test_list_of_list_schema(self):
+        """测试嵌套列表类型（当前实现限制：内层列表的描述和最内层类型信息无法完全保留）"""
+        schema = {
+            "matrix": {
+                "_type": "list",
+                "_desc": "2D matrix",
+                "_item": {
+                    "_type": "list",
+                    "_desc": "Row of numbers",
+                    "_item": {
+                        "_type": "int",
+                        "_desc": "Single number",
+                    },
+                },
+            },
+        }
+
+        model = SchemaParser.build_model("Matrix", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+
+        # 验证外层列表
+        assert "matrix" in dumped
+        assert dumped["matrix"]["_type"] == "list"
+        assert dumped["matrix"]["_desc"] == "2D matrix"
+
+        # 验证内层列表（当前实现限制：内层列表的描述信息无法保留）
+        assert "_item" in dumped["matrix"]
+        assert dumped["matrix"]["_item"]["_type"] == "list"
+
+        # 验证存在嵌套结构
+        assert "_item" in dumped["matrix"]["_item"]
+
+    def test_literal_type_dump(self):
+        """测试 Literal 类型的 dump"""
+        schema = {
+            "status": {
+                "_type": "Literal['active', 'inactive']",
+                "_desc": "Status value",
+                "_default": "active",
+            },
+        }
+
+        model = SchemaParser.build_model("LiteralDumpTest", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+
+        assert "status" in dumped
+        assert dumped["status"]["_type"] == "Literal['active', 'inactive']"
+        assert dumped["status"]["_desc"] == "Status value"
+        assert dumped["status"]["_default"] == "active"
+
+    def test_mixed_complex_types(self):
+        """测试混合复杂类型的 schema"""
+        schema = {
+            "basic_str": {
+                "_type": "str",
+                "_desc": "Basic string",
+            },
+            "nested_dict": {
+                "_type": "dict",
+                "_desc": "Nested dictionary",
+                "name": {
+                    "_type": "str",
+                    "_desc": "Name inside dict",
+                    "_default": "test",
+                },
+            },
+            "list_of_objects": {
+                "_type": "list",
+                "_desc": "List of objects",
+                "_item": {
+                    "id": {
+                        "_type": "int",
+                        "_desc": "Item ID",
+                    },
+                    "value": {
+                        "_type": "str",
+                        "_desc": "Item value",
+                    },
+                },
+            },
+        }
+
+        model = SchemaParser.build_model("MixedTypes", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+        assert len(dumped) == 3
+
+        # 测试基本字符串
+        assert dumped["basic_str"]["_type"] == "str"
+        assert "_default" not in dumped["basic_str"]
+
+        # 测试嵌套字典
+        assert dumped["nested_dict"]["_type"] == "dict"
+        assert "name" in dumped["nested_dict"]
+        assert dumped["nested_dict"]["name"]["_default"] == "test"
+
+        # 测试对象列表
+        assert dumped["list_of_objects"]["_type"] == "list"
+        assert "_item" in dumped["list_of_objects"]
+        assert "id" in dumped["list_of_objects"]["_item"]
+        assert "value" in dumped["list_of_objects"]["_item"]
+
+    def test_empty_dict_schema(self):
+        """测试空字典的 schema"""
+        schema = {}
+
+        model = SchemaParser.build_model("EmptyModel", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+        assert len(dumped) == 0
+
+    def test_dict_with_list_and_dict_mixed(self):
+        """测试字典中同时包含列表和字典类型"""
+        schema = {
+            "data": {
+                "_type": "dict",
+                "_desc": "Mixed container",
+                "items": {
+                    "_type": "list",
+                    "_desc": "List of items",
+                    "_item": {
+                        "name": {
+                            "_type": "str",
+                            "_desc": "Item name",
+                        },
+                    },
+                },
+                "metadata": {
+                    "_type": "dict",
+                    "_desc": "Metadata dict",
+                    "version": {
+                        "_type": "str",
+                        "_desc": "Version string",
+                        "_default": "1.0",
+                    },
+                },
+            },
+        }
+
+        model = SchemaParser.build_model("MixedContainer", schema)
+        assert issubclass(model, BaseModel)
+
+        dumped = SchemaParser.dump_model(model)
+        assert isinstance(dumped, dict)
+
+        # 验证外层
+        assert "data" in dumped
+        assert dumped["data"]["_type"] == "dict"
+
+        # 验证列表字段
+        assert "items" in dumped["data"]
+        assert dumped["data"]["items"]["_type"] == "list"
+        assert "_item" in dumped["data"]["items"]
+
+        # 验证嵌套字典字段
+        assert "metadata" in dumped["data"]
+        assert dumped["data"]["metadata"]["_type"] == "dict"
+        assert "version" in dumped["data"]["metadata"]
+        assert dumped["data"]["metadata"]["version"]["_default"] == "1.0"
+
