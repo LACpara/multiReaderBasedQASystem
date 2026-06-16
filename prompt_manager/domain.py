@@ -36,13 +36,13 @@ class PromptDefinition:
         if self.output_mode == "json" and self.output_model:
             schema = self.output_model.model_json_schema()
 
-            prompt += "\n".join(
+            prompt += "\n".join([
                 "\n\n## 输出约束",
-                "返回结果严格遵循 JSON 格式：",
+                "返回结果严格遵循以下 JSON Schema：",
                 "```json",
                 f"{json.dumps(schema, ensure_ascii=False, indent=2)}",
                 "```",
-            )
+            ])
 
         return prompt
 
