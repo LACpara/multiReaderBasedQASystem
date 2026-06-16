@@ -1,0 +1,35 @@
+title: 知识聚合提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 将多个子 Reader 的知识聚合成更高层次的知识
+param:
+  title:
+    _type: str
+    _desc: 父节点标题
+  children_knowledge_json:
+    _type: str
+    _desc: 子知识列表 JSON 格式
+output:
+  mode: json
+  schema:
+    summary:
+      _type: str
+      _desc: 对所有子知识的综合概括
+    entities:
+      _type: list
+      _desc: 所有重要实体的合并，去重
+      _item:
+        _type: str
+    relations:
+      _type: list
+      _desc: 所有重要关系的合并，去重
+      _item:
+        _type: str
+    exceptions:
+      _type: list
+      _desc: 所有例外情况的合并，去重
+      _item:
+        _type: str

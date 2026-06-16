@@ -1,0 +1,22 @@
+title: 问题集构建提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 根据 Reader 知识生成它能够回答的问题边界
+param:
+  title:
+    _type: str
+    _desc: Reader 标题
+  knowledge:
+    _type: str
+    _desc: Reader 知识
+output:
+  mode: json
+  schema:
+    capability_questions:
+      _type: list
+      _desc: Reader 能够回答的问题列表
+      _item:
+        _type: str

@@ -1,9 +1,0 @@
-@param:question
-@param:answers
-@begin
-请整合多个 Reader 的部分回答，去除重复、保留高置信度信息。
-只能使用给定回答中的信息，无法确定则说明不足。
-
-问题：{question}
-Reader 回答：{answers}
-@end

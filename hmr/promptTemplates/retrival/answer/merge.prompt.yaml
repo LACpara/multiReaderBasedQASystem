@@ -1,0 +1,17 @@
+title: 检索结果整合提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 整合多个 Reader 的部分回答，去除重复、保留高置信度信息
+param:
+  question:
+    _type: str
+    _desc: 用户问题
+  answers:
+    _type: str
+    _desc: 多个 Reader 的回答列表
+output:
+  mode: text
+  schema: []

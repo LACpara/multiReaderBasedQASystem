@@ -1,0 +1,22 @@
+title: 知识缺口检测提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 从知识内容中识别信息缺口或未回答的问题
+param:
+  title:
+    _type: str
+    _desc: 知识标题
+  knowledge_json:
+    _type: str
+    _desc: 知识内容 JSON 格式
+output:
+  mode: json
+  schema:
+    gaps:
+      _type: list
+      _desc: 需要进一步探索或向上游询问的问题列表，3-5个
+      _item:
+        _type: str

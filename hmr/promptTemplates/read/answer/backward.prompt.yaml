@@ -1,0 +1,29 @@
+title: 逆向求知回答提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 基于本地知识回答问题，支持完整回答、部分回答或无法回答
+param:
+  title:
+    _type: str
+    _desc: 标题
+  knowledge_json:
+    _type: str
+    _desc: 本地知识 JSON 格式
+  question:
+    _type: str
+    _desc: 用户问题
+output:
+  mode: json
+  schema:
+    answered_content:
+      _type: str
+      _desc: 已回答的内容
+    remaining_question:
+      _type: str
+      _desc: 剩余未回答的问题，或 null
+    confidence:
+      _type: float
+      _desc: 置信度 0.0~1.0

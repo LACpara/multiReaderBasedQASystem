@@ -1,0 +1,23 @@
+title: 检索回答提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 基于 Reader 知识回答问题，可部分回答
+param:
+  question:
+    _type: str
+    _desc: 用户问题
+  knowledge:
+    _type: str
+    _desc: Reader 知识
+output:
+  mode: json
+  schema:
+    answer:
+      _type: str
+      _desc: 回答内容
+    confidence:
+      _type: float
+      _desc: 置信度 0~1

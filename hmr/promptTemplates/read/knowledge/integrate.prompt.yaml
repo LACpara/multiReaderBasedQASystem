@@ -1,0 +1,38 @@
+title: 知识整合提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 将获取的完整答案整合到原有知识中
+param:
+  title:
+    _type: str
+    _desc: Reader 标题
+  original_knowledge_json:
+    _type: str
+    _desc: 原有知识 JSON 格式
+  answers_json:
+    _type: str
+    _desc: 获取的答案列表 JSON 格式
+output:
+  mode: json
+  schema:
+    summary:
+      _type: str
+      _desc: 更新后的摘要，包含答案信息
+    entities:
+      _type: list
+      _desc: 更新后的实体列表
+      _item:
+        _type: str
+    relations:
+      _type: list
+      _desc: 更新后的关系列表
+      _item:
+        _type: str
+    exceptions:
+      _type: list
+      _desc: 更新后的例外列表
+      _item:
+        _type: str

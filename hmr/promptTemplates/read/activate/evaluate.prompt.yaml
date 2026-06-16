@@ -1,0 +1,29 @@
+title: 激活评估提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 判断该 Reader 是否应回答用户问题
+param:
+  question:
+    _type: str
+    _desc: 用户问题
+  knowledge:
+    _type: str
+    _desc: Reader 知识
+output:
+  mode: json
+  schema:
+    should_answer:
+      _type: bool
+      _desc: 是否应该回答
+    score:
+      _type: float
+      _desc: 置信度分数 0~1
+    sub_question:
+      _type: str
+      _desc: 自己要回答的子问题
+    reason:
+      _type: str
+      _desc: 判断理由

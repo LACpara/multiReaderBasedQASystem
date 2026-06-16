@@ -1,19 +1,10 @@
-@param:title
-@param:children_capabilities_json
-@begin
 你是分层 Reader 系统中的能力评估器。请基于多个子 Reader 的能力问题，估计父节点的回答能力。
-返回严格 JSON：
-```
-{
-  "capability_questions": ["父节点能够回答的问题列表，10个以内"]
-}
-```
+
 要求：
 1. 问题应该是子节点问题的概括和抽象
 2. 不要简单重复子节点的问题
 3. 保持 10 个问题以内
 
-标题：{title}
+标题：${title}
 子节点能力问题列表（JSON 格式）：
-{children_capabilities_json}
-@end
+${children_capabilities_json}

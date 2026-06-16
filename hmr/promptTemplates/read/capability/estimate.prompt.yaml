@@ -1,0 +1,22 @@
+title: 能力估计提示词模板
+author: LACpara
+email: 2797157434@qq.com
+last_modified: 2026-06-16
+version: 1.0
+tags: []
+description: 基于多个子 Reader 的能力问题，估计父节点的回答能力
+param:
+  title:
+    _type: str
+    _desc: 父节点标题
+  children_capabilities_json:
+    _type: str
+    _desc: 子节点能力问题列表 JSON 格式
+output:
+  mode: json
+  schema:
+    capability_questions:
+      _type: list
+      _desc: 父节点能够回答的问题列表，10个以内
+      _item:
+        _type: str
