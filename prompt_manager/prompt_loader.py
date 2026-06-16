@@ -1,35 +1,67 @@
-from pathlib import Path
+from asyncio import protocols
 import hashlib
 import yaml
+import re
+
+from pathlib import Path
+from functools import lru_cache
+
 from prompt_manager.domain import PromptDefinition
 from prompt_manager.schema_parser import SchemaParser
 
-class PromptLoader:
-    def __init__(self, cache_dir: str = ".prompt_cache"):
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(exist_ok=True)
 
-    def load(self, yaml_path: str | Path) -> PromptDefinition:
+class PromptLoader:
+    def __init__(self, base_dir: str | Path, recursive: bool = True):
+        self.base_dir = Path(base_dir)
+        self.prompts = {}
+        self.recursive = recursive
+        if not self.base_dir.is_dir():
+            raise ValueError(f"The argument `base_dir` should be a direction")
+        self._load_prompt_list(self.base_dir)
+
+    def _load_prompt_list(self, root_dir: Path):
+        for child in root_dir.iterdir():
+            if child.is_dir() and self.recursive:
+                self._load_prompt_list(child)
+                continue
+            
+            if child.name.endswith((".prompt.yaml", ".prompt.md")):
+                prompt_base_name, *_ = child.name.rsplit(".", 2)
+                if prefix := root_dir.relative_to(self.base_dir).parts:
+                    prompt_full_name = ".".join([*prefix, prompt_base_name])
+                else:
+                    prompt_full_name = prompt_base_name
+
+                if prompt_full_name not in self.prompts:
+                    self.prompts[prompt_full_name] = (
+                        root_dir / (prompt_base_name + ".prompt.yaml"),
+                        root_dir / (prompt_base_name + ".prompt.md")
+                    )
+    
+    def list_all_prompt(self) -> list[str]:
+        return list(self.prompts.keys())
+
+    def get_prompt(self, prompt_name: str) -> PromptDefinition:
+        if prompt_name not in self.prompts:
+            raise ValueError(f"prompt {prompt_name} is not found")
+        
+        yaml_path, md_path = self.prompts[prompt_name]
+        prompt_template = self.load(yaml_path, md_path)
+        return prompt_template
+        
+    @lru_cache
+    def load(self, yaml_path: str | Path, md_path: str | Path) -> PromptDefinition:
         yaml_path = Path(yaml_path)
-        md_path = yaml_path.with_suffix(".prompt.md")
+        md_path = Path(md_path)
 
         yaml_text = yaml_path.read_text(encoding="utf-8")
         md_text = md_path.read_text(encoding="utf-8")
-
-        cache_key = hashlib.sha256(
-            (yaml_text + md_text).encode("utf-8")
-        ).hexdigest()
-
-        cache_file = self.cache_dir / f"{cache_key}.json"
-
-        if cache_file.exists():
-            pass
 
         config = yaml.safe_load(yaml_text)
 
         param_schema = config.get("param", {})
         output_cfg = config.get("output", {"mode": "text"})
-        meta = config.get("meta", {})
+        meta = {k:v for k, v in config.items() if k not in ("param", "output")}
 
         param_model = SchemaParser.build_model(
             "PromptParams",

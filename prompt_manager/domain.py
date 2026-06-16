@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import re
 import json
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Any
 
 

@@ -1,0 +1,18 @@
+title: 嵌套存放的提示词模板文件
+author: 李四
+email: lisi@example.com
+last_modified: 2026-06-08
+version: 1.0
+tags: [示例, 文本输出]
+description: 根据用户名和年龄，生成个性化问候语。
+output:
+  mode: text
+param:
+  matrix:
+    _type: list
+    _desc: matrix
+    _item:
+      _type: list
+      _desc: row of matrix
+      _item:
+        _type: flaot

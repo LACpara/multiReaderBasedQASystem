@@ -1,0 +1,26 @@
+title: 文本摘要示例
+author: 李四
+email: li@example.com
+last_modified: 2026-06-08
+version: 2.0
+tags: [示例, JSON输出]
+description: 根据输入内容生成摘要及统计信息，返回 JSON 格式。
+output:
+  mode: json
+  schema:
+    summary:
+      _type: str
+      _desc: 内容的简要总结
+    word_count:
+      _type: int
+      _desc: 总字数统计
+    keywords:
+      _type: list
+      _desc: 关键字列表
+      _item:
+        _type: str
+param:
+  - name: content
+    type: str
+    required: true
+    description: 输入的长篇文本内容

@@ -7,22 +7,11 @@ tags: [示例, 文本输出]
 description: 根据用户名和年龄，生成个性化问候语。
 output:
   mode: text
-parameters:
+param:
   username:
-    type: str
-    description: 用户姓名
-  age:
-    type: int
-    default: 18
-    description: 用户年龄
-  
-params:
-  _type: list[dict]
-  _desc: 参数
-  _item0:
     _type: str
-    _desc: sss
-  _item1:
+    _desc: 用户姓名
+  age:
     _type: int
-    _desc: sss
-  _sd: a
+    _desc: 用户年龄
+    _default: 18
