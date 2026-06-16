@@ -9,8 +9,10 @@ from typing_extensions import override
 
 from hmr.utils import retry
 from hmr.domain import ActivationDecision, ReaderAnswer, ReaderKnowledge, CompleteAnswer
-from hmr.prompt_loader import PromptLoader
 from hmr.llm.base import LLMClient, ReaderLLMService
+
+from prompt_manager.prompt_loader import PromptLoader
+from prompt_manager.domain import PromptDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -29,20 +31,20 @@ class PromptedReaderLLMService(ReaderLLMService):
 
     @override
     def extract_knowledge(self, text: str, *, title: str) -> ReaderKnowledge:
-        prompt = self.prompt_loader.get_prompt("knowledge_extract", text=text, title=title)
+        prompt = self.prompt_loader.get_prompt("read.knowledge.extract", text=text, title=title)
         payload = self._json_call(prompt)
         return ReaderKnowledge.from_dict({**payload, "source_excerpt": text[:500]})
 
     @override
     def build_capability_questions(self, knowledge: ReaderKnowledge, *, title: str) -> list[str]:
-        prompt = self.prompt_loader.get_prompt("question_set_build", knowledge=knowledge, title=title)
+        prompt = self.prompt_loader.get_prompt("read.question.build", knowledge=knowledge, title=title)
         payload = self._json_call(prompt)
         questions = payload.get("capability_questions", [])
         return [str(question) for question in questions][:10]
 
     @override
     def evaluate_activation(self, knowledge: ReaderKnowledge, question: str) -> ActivationDecision:
-        prompt = self.prompt_loader.get_prompt("evluate_activation", knowledge=knowledge, question=question)
+        prompt = self.prompt_loader.get_prompt("read.activate.evaluate", knowledge=knowledge, question=question)
         payload = self._json_call(prompt)
         return ActivationDecision(
             should_answer=bool(payload.get("should_answer", False)),
@@ -60,7 +62,7 @@ class PromptedReaderLLMService(ReaderLLMService):
         reader_id: str,
         title: str,
     ) -> ReaderAnswer:
-        prompt = self.prompt_loader.get_prompt("retrival_answer", knowledge=knowledge, question=question)
+        prompt = self.prompt_loader.get_prompt("retrival.answer.build", knowledge=knowledge, question=question)
         payload = self._json_call(prompt)
         return ReaderAnswer(
             reader_id=reader_id,
@@ -72,7 +74,7 @@ class PromptedReaderLLMService(ReaderLLMService):
 
     @override
     def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> str:
-        prompt = self.prompt_loader.get_prompt("retrival_merge", question=question, answers=answers)
+        prompt = self.prompt_loader.get_prompt("retrival.answer.merge", question=question, answers=answers)
         result = self.client.complete(prompt, temperature=0.0, max_tokens=900).strip()
         return result
     
@@ -84,7 +86,7 @@ class PromptedReaderLLMService(ReaderLLMService):
         title: str
     ) -> ReaderKnowledge:
         children_json = json.dumps([k.to_dict() for k in children_knowledge], ensure_ascii=False)
-        prompt = self.prompt_loader.get_prompt("aggregate_knowledge", title=title, children_knowledge_json=children_json)
+        prompt = self.prompt_loader.get_prompt("read.knowledge.aggregate", title=title, children_knowledge_json=children_json)
         payload = self._json_call(prompt)
         return ReaderKnowledge.from_dict(payload)
     
@@ -97,7 +99,7 @@ class PromptedReaderLLMService(ReaderLLMService):
         limits: int = -1
     ) -> list[str]:
         caps_json = json.dumps(children_capabilities, ensure_ascii=False)
-        prompt = self.prompt_loader.get_prompt("estimate_capability", title=title, children_capabilities_json=caps_json)
+        prompt = self.prompt_loader.get_prompt("read.capability.estimate", title=title, children_capabilities_json=caps_json)
         payload = self._json_call(prompt)
         questions = payload.get("capability_questions", [])
         return [str(q) for q in questions][:limits]
@@ -111,7 +113,7 @@ class PromptedReaderLLMService(ReaderLLMService):
         title: str
     ) -> list[str]:
         knowledge_json = json.dumps(knowledge.to_dict(), ensure_ascii=False)
-        prompt = self.prompt_loader.get_prompt("detect_gaps", title=title, text=text, knowledge_json=knowledge_json)
+        prompt = self.prompt_loader.get_prompt("read.gap.detect", title=title, text=text, knowledge_json=knowledge_json)
         payload = self._json_call(prompt)
         gaps = payload.get("gaps", [])
         return [str(g) for g in gaps]
@@ -126,7 +128,7 @@ class PromptedReaderLLMService(ReaderLLMService):
     ) -> ReaderKnowledge:
         orig_json = json.dumps(original_knowledge.to_dict(), ensure_ascii=False)
         answers_json = json.dumps([a.to_dict() for a in complete_answers], ensure_ascii=False)
-        prompt = self.prompt_loader.get_prompt("integrate_knowledge", title=title, original_knowledge_json=orig_json, answers_json=answers_json)
+        prompt = self.prompt_loader.get_prompt("read.knowledge.integrate", title=title, original_knowledge_json=orig_json, answers_json=answers_json)
         payload = self._json_call(prompt)
         result = ReaderKnowledge.from_dict(payload)
         result.capability_questions = original_knowledge.capability_questions
@@ -143,7 +145,7 @@ class PromptedReaderLLMService(ReaderLLMService):
         title: str
     ) -> tuple[str, str | None, float]:
         knowledge_json = json.dumps(knowledge.to_dict(), ensure_ascii=False)
-        prompt = self.prompt_loader.get_prompt("answer_backward", title=title, knowledge_json=knowledge_json, question=question)
+        prompt = self.prompt_loader.get_prompt("read.answer.backward", title=title, knowledge_json=knowledge_json, question=question)
         payload = self._json_call(prompt)
         answered = str(payload.get("answered_content", ""))
         remaining = payload.get("remaining_question")
@@ -160,7 +162,7 @@ class PromptedReaderLLMService(ReaderLLMService):
     ) -> list[str]:
         """从知识中检测信息缺口（父节点专用），返回需要向上游询问的问题列表"""
         knowledge_json = json.dumps(knowledge.to_dict(), ensure_ascii=False)
-        prompt = self.prompt_loader.get_prompt("detect_gaps_from_knowledge", title=title, knowledge_json=knowledge_json)
+        prompt = self.prompt_loader.get_prompt("read.gap.detect_from_knowledge", title=title, knowledge_json=knowledge_json)
         payload = self._json_call(prompt)
         gaps = payload.get("gaps", [])
         return [str(g) for g in gaps]
