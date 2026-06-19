@@ -184,6 +184,7 @@ class ReaderAnswer:
     answer: str
     confidence: float
     source_excerpt: str
+    analysis: str = "..."
 
 
 @dataclass(slots=True)
