@@ -10,8 +10,34 @@ param:
     _type: str
     _desc: Reader 标题
   knowledge:
-    _type: str
+    _type: dict
     _desc: Reader 知识
+    summary:
+      _type: str
+      _desc: 知识概要
+    entities:
+      _type: list
+      _desc: 包含的实体
+      _item:
+        _type: str
+    relations:
+      _type: list
+      _desc: 实体之间存在的关系
+      _item:
+        _type: str
+    exceptions:
+      _type: list
+      _desc: 额外强调的事件
+      _item:
+        _type: str
+    capability_questions:
+      _type: list
+      _desc: 基于知识可以回答的问题
+      _item:
+        _type: str
+    source_excerpt:
+      _type: str
+      _desc: 关联的原文片段
 output:
   mode: json
   schema:

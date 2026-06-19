@@ -76,7 +76,7 @@ class RetrievalEngine:
                 continue
             decision = self.llm_service.evaluate_activation(reader.knowledge, question)
             logger.info(
-                "Activation reader=%s vector=%.3f self=%.3f pass=%s",
+                "Activation reader=%s vector=%.3f score=%.3f pass=%s",
                 reader.title,
                 candidate.score,
                 decision.score,

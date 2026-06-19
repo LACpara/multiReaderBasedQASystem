@@ -9,7 +9,7 @@ class LLMClient(ABC):
     """Low-level provider boundary for actual remote LLM calls."""
 
     @abstractmethod
-    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 1024, json_require: bool = False) -> str:
+    def complete(self, prompt: str, *, temperature: float = 0.0, max_tokens: int = 80000, json_require: bool = False) -> str:
         """Return a raw completion string from the configured model provider."""
 
 
@@ -40,7 +40,7 @@ class ReaderLLMService(ABC):
         """Produce one grounded partial answer from local Reader knowledge."""
 
     @abstractmethod
-    def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> str:
+    def merge_answers(self, question: str, answers: list[ReaderAnswer]) -> dict:
         """Merge activated Readers' answers into a compact final response."""
     
     @abstractmethod

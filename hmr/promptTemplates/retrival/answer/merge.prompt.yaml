@@ -10,8 +10,19 @@ param:
     _type: str
     _desc: 用户问题
   answers:
-    _type: str
+    _type: list
     _desc: 多个 Reader 的回答列表
+    _item:
+      _type: dict
+      _desc: 单个 Reader 的回答
+      content:
+        _type: str
+        _desc: 回答的内容
+      analysis:
+        _type: str
+        _desc: 简要的分析过程
+      confidence:
+        _type: float
+        _desc: 自评估的置信度，范围 0~1
 output:
   mode: text
-  schema: []

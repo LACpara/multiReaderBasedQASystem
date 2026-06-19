@@ -70,6 +70,7 @@ class HeuristicReaderLLMService(ReaderLLMService):
             reader_id=reader_id,
             title=title,
             answer=answer_text,
+            analysis="",
             confidence=confidence,
             source_excerpt=knowledge.source_excerpt,
         )
