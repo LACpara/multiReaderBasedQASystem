@@ -28,8 +28,8 @@ class ReaderRetrievalApp:
         self.store = SQLiteKnowledgeStore(config.storage.sqlite_path)
         self.store.init_schema()
         self.vector_index = ChromaVectorIndex(
-            config.storage.chroma_path,
             config.storage.chroma_collection,
+            config.storage.chroma_path
         )
         self.builder = ReaderTreeBuilder(
             config.ingestion,
